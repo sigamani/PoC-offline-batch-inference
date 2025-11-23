@@ -63,7 +63,7 @@ services:
       bash -c "
         ray start --address=ray-head:6379 --redis-password=ray123 --num-gpus=1 &&
         cd /app &&
-        python ray_data_vllm_official.py worker ray-head:6379
+        python ray_data_official.py worker ray-head:6379
       "
     restart: unless-stopped
     deploy:
