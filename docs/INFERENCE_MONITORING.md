@@ -108,7 +108,7 @@ sum(llm_active_requests) by (worker_id)
 - `/root/workspace/prometheus.yml` - Prometheus scraping config
 - `/root/workspace/docker-compose-monitoring.yml` - Monitoring stack
 - `/root/workspace/inference_metrics_exporter.py` - Custom metrics
-- `/root/workspace/setup_inference_dashboard.sh` - Grafana dashboard
+- `/root/workspace/setup_inference_dashboard.sh` - Grafana datasource + dashboards
 
 ## 📈 Scaling Considerations
 

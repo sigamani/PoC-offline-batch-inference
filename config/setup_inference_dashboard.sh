@@ -1,6 +1,110 @@
 #!/bin/bash
 
-# Create comprehensive inference monitoring dashboard
+set -e
+
+# Wait for Grafana to be reachable before provisioning assets
+echo "Waiting for Grafana to start..."
+until curl -s http://localhost:3000/api/health | grep -q "ok"; do
+    sleep 2
+done
+
+echo "Grafana is ready. Ensuring Prometheus datasource..."
+
+# Create or update the Prometheus datasource so dashboards can query metrics
+curl -s -o /dev/null -w "%{http_code}" -X POST \
+  http://localhost:3000/api/datasources \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Basic YWRtaW46YWRtaW4xMjM=' \
+  -d '{
+    "name": "Prometheus",
+    "type": "prometheus",
+    "url": "http://prometheus:9090",
+    "access": "proxy",
+    "isDefault": true
+  }' | grep -E "(200|202)" >/dev/null || echo "Datasource already exists"
+
+echo "Provisioning NVIDIA GPU dashboard..."
+
+# Import GPU monitoring dashboard (legacy functionality retained)
+curl -X POST \
+  http://localhost:3000/api/dashboards/db \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Basic YWRtaW46YWRtaW4xMjM=' \
+  -d '{
+    "dashboard": {
+      "id": null,
+      "title": "NVIDIA GPU Monitoring",
+      "tags": ["gpu", "nvidia"],
+      "timezone": "browser",
+      "panels": [
+        {
+          "id": 1,
+          "title": "GPU Utilization",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "dcgm_gpu_utilization",
+              "legendFormat": "GPU {{gpu}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100
+            }
+          }
+        },
+        {
+          "id": 2,
+          "title": "GPU Memory Usage",
+          "type": "graph",
+          "targets": [
+            {
+              "expr": "dcgm_memory_used",
+              "legendFormat": "Used - GPU {{gpu}}"
+            },
+            {
+              "expr": "dcgm_memory_total",
+              "legendFormat": "Total - GPU {{gpu}}"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "GPU Temperature",
+          "type": "graph",
+          "targets": [
+            {
+              "expr": "dcgm_gpu_temperature",
+              "legendFormat": "GPU {{gpu}}"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "GPU Power Usage",
+          "type": "graph",
+          "targets": [
+            {
+              "expr": "dcgm_power_usage",
+              "legendFormat": "GPU {{gpu}}"
+            }
+          ]
+        }
+      ],
+      "time": {
+        "from": "now-1h",
+        "to": "now"
+      },
+      "refresh": "5s"
+    },
+    "overwrite": true
+  }'
+
+echo "Provisioning LLM inference dashboard..."
+
+# Import comprehensive LLM inference monitoring dashboard
 curl -X POST \
   http://localhost:3000/api/dashboards/db \
   -H 'Content-Type: application/json' \
@@ -183,3 +287,8 @@ curl -X POST \
     },
     "overwrite": true
   }'
+
+echo "Grafana provisioning complete!"
+echo "GPU dashboard: http://localhost:3000/d/NVIDIA_GPU_Monitoring"
+echo "Inference dashboard: http://localhost:3000/d/LLM_Inference_Worker_Monitoring"
+echo "Login with: admin / admin123"
