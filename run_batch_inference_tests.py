@@ -9,13 +9,14 @@ import os
 import subprocess
 import tempfile
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from typing import Dict, List
 
 
 @dataclass
 class TestConfig:
     """Test configuration parameters"""
+
     model_name: str
     batch_size: int
     concurrency: int
@@ -28,6 +29,7 @@ class TestConfig:
 @dataclass
 class TestResult:
     """Test execution results"""
+
     config: TestConfig
     throughput: float
     tokens_per_sec: float
@@ -39,12 +41,12 @@ class TestResult:
 
 class BatchInferenceTestRunner:
     """Manages batch inference testing in Docker"""
-    
+
     def __init__(self, docker_image="michaelsigamani/proj-grounded-telescopes:0.1.0"):
         self.docker_image = docker_image
         self.temp_dir = tempfile.mkdtemp()
         self.results: List[TestResult] = []
-        
+
     def create_test_configs(self) -> List[TestConfig]:
         """Create test matrix configurations"""
         return [
@@ -52,19 +54,19 @@ class BatchInferenceTestRunner:
                 model_name="Qwen/Qwen2.5-0.5B-Instruct",
                 batch_size=128,
                 concurrency=2,
-                expected_impact="Baseline"
+                expected_impact="Baseline",
             ),
             TestConfig(
                 model_name="Qwen/Qwen2.5-0.5B-Instruct",
                 batch_size=256,
                 concurrency=2,
-                expected_impact="+30-50% throughput"
+                expected_impact="+30-50% throughput",
             ),
             TestConfig(
                 model_name="Qwen/Qwen2.5-0.5B-Instruct",
                 batch_size=128,
                 concurrency=4,
-                expected_impact="Test scaling"
+                expected_impact="Test scaling",
             ),
             TestConfig(
                 model_name="Qwen/Qwen2.5-7B-Instruct",
@@ -81,7 +83,7 @@ class BatchInferenceTestRunner:
                 max_model_len=4096,
             ),
         ]
-    
+
     def create_docker_test_script(self, config: TestConfig) -> str:
         """Create Python script to run inside Docker container"""
         script_content = f'''#!/usr/bin/env python3
@@ -248,61 +250,69 @@ def run_test():
 if __name__ == "__main__":
     run_test()
 '''
-        
-        script_path = os.path.join(self.temp_dir, f"test_{config.batch_size}_{config.concurrency}.py")
-        with open(script_path, 'w') as f:
+
+        script_path = os.path.join(
+            self.temp_dir, f"test_{config.batch_size}_{config.concurrency}.py"
+        )
+        with open(script_path, "w") as f:
             f.write(script_content)
-        
+
         return script_path
-    
+
     def run_docker_test(self, config: TestConfig) -> TestResult:
         """Run single test in Docker container"""
-        print(f"\\n{'='*60}")
+        print(f"\\n{'=' * 60}")
         print(f"Testing: {config.model_name}")
         print(f"Batch Size: {config.batch_size}, Concurrency: {config.concurrency}")
         print(f"Expected: {config.expected_impact}")
-        print(f"{'='*60}")
-        
+        print(f"{'=' * 60}")
+
         # Create test script
         script_path = self.create_docker_test_script(config)
-        
+
         try:
             # Run Docker command
             cmd = [
-                "docker", "run", "--rm", "--gpus", "all",
-                "-v", f"{script_path}:/tmp/test_script.py",
+                "docker",
+                "run",
+                "--rm",
+                "--gpus",
+                "all",
+                "-v",
+                f"{script_path}:/tmp/test_script.py",
                 self.docker_image,
-                "python", "/tmp/test_script.py"
+                "python",
+                "/tmp/test_script.py",
             ]
-            
+
             print(f"Running: {' '.join(cmd)}")
             start_time = time.time()
-            
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=600  # 10 minute timeout
+                timeout=600,  # 10 minute timeout
             )
-            
+
             total_time = time.time() - start_time
-            
+
             if result.returncode == 0:
                 # Parse JSON output
                 try:
                     output = json.loads(result.stdout.strip())
                     if output.get("success", False):
-                        print(f"✅ Test completed successfully!")
+                        print("✅ Test completed successfully!")
                         print(f"   Throughput: {output['throughput']:.2f} req/s")
                         print(f"   Tokens/sec: {output['tokens_per_sec']:.2f}")
                         print(f"   Total time: {output['total_time']:.2f}s")
-                        
+
                         return TestResult(
                             config=config,
                             throughput=output["throughput"],
                             tokens_per_sec=output["tokens_per_sec"],
                             total_time=output["total_time"],
-                            success=True
+                            success=True,
                         )
                     else:
                         error_msg = output.get("error", "Unknown error")
@@ -313,7 +323,7 @@ if __name__ == "__main__":
                             tokens_per_sec=0.0,
                             total_time=total_time,
                             success=False,
-                            error_message=error_msg
+                            error_message=error_msg,
                         )
                 except json.JSONDecodeError as e:
                     print(f"❌ Failed to parse output: {e}")
@@ -324,7 +334,7 @@ if __name__ == "__main__":
                         tokens_per_sec=0.0,
                         total_time=total_time,
                         success=False,
-                        error_message=f"JSON parse error: {e}"
+                        error_message=f"JSON parse error: {e}",
                     )
             else:
                 error_msg = result.stderr.strip() or result.stdout.strip()
@@ -335,18 +345,18 @@ if __name__ == "__main__":
                     tokens_per_sec=0.0,
                     total_time=total_time,
                     success=False,
-                    error_message=error_msg
+                    error_message=error_msg,
                 )
-                
+
         except subprocess.TimeoutExpired:
-            print(f"❌ Test timed out after 10 minutes")
+            print("❌ Test timed out after 10 minutes")
             return TestResult(
                 config=config,
                 throughput=0.0,
                 tokens_per_sec=0.0,
                 total_time=600.0,
                 success=False,
-                error_message="Test timed out after 10 minutes"
+                error_message="Test timed out after 10 minutes",
             )
         except Exception as e:
             print(f"❌ Unexpected error: {e}")
@@ -356,47 +366,49 @@ if __name__ == "__main__":
                 tokens_per_sec=0.0,
                 total_time=0.0,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
             )
-    
+
     def run_test_matrix(self) -> List[TestResult]:
         """Run complete test matrix"""
         print("🚀 Starting Batch Inference Test Matrix in Docker")
-        
+
         configs = self.create_test_configs()
         results = []
-        
+
         for i, config in enumerate(configs, 1):
             print(f"\\n📊 Test {i}/{len(configs)}")
             result = self.run_docker_test(config)
             results.append(result)
-            
+
             # Small delay between tests
             time.sleep(2)
-        
+
         self.results = results
         return results
-    
+
     def generate_report(self) -> Dict:
         """Generate comprehensive test report"""
         if not self.results:
             return {"error": "No test results available"}
-        
+
         successful_tests = [r for r in self.results if r.success]
         failed_tests = [r for r in self.results if not r.success]
-        
+
         report = {
             "summary": {
                 "total_tests": len(self.results),
                 "successful": len(successful_tests),
                 "failed": len(failed_tests),
-                "success_rate": len(successful_tests) / len(self.results) * 100 if self.results else 0,
+                "success_rate": len(successful_tests) / len(self.results) * 100
+                if self.results
+                else 0,
             },
             "results": [],
             "performance_analysis": {},
-            "recommendations": []
+            "recommendations": [],
         }
-        
+
         # Add individual test results
         for result in self.results:
             result_dict = {
@@ -411,7 +423,7 @@ if __name__ == "__main__":
                 "error_message": result.error_message,
             }
             report["results"].append(result_dict)
-        
+
         # Performance analysis
         if successful_tests:
             baseline_throughput = None
@@ -419,36 +431,46 @@ if __name__ == "__main__":
                 if "Baseline" in result.config.expected_impact:
                     baseline_throughput = result.throughput
                     break
-            
+
             if baseline_throughput:
                 improvements = []
                 for result in successful_tests:
                     if "Baseline" not in result.config.expected_impact:
-                        improvement = (result.throughput - baseline_throughput) / baseline_throughput * 100
-                        improvements.append({
-                            "config": f"{result.config.batch_size}/{result.config.concurrency}",
-                            "improvement_percent": improvement
-                        })
-                report["performance_analysis"]["baseline_throughput"] = baseline_throughput
+                        improvement = (
+                            (result.throughput - baseline_throughput)
+                            / baseline_throughput
+                            * 100
+                        )
+                        improvements.append(
+                            {
+                                "config": f"{result.config.batch_size}/{result.config.concurrency}",
+                                "improvement_percent": improvement,
+                            }
+                        )
+                report["performance_analysis"]["baseline_throughput"] = (
+                    baseline_throughput
+                )
                 report["performance_analysis"]["improvements"] = improvements
-        
+
         # Recommendations
         if failed_tests:
-            report["recommendations"].append("Some tests failed - check GPU memory and model availability")
-        
+            report["recommendations"].append(
+                "Some tests failed - check GPU memory and model availability"
+            )
+
         if successful_tests:
             best_throughput = max(successful_tests, key=lambda x: x.throughput)
             report["recommendations"].append(
                 f"Best performance: {best_throughput.config.model_name} with "
                 f"batch_size={best_throughput.config.batch_size}, concurrency={best_throughput.config.concurrency}"
             )
-        
+
         return report
-    
+
     def save_report(self, filepath: str):
         """Save test report to file"""
         report = self.generate_report()
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(report, f, indent=2)
         print(f"\\n📄 Test report saved to: {filepath}")
 
@@ -457,32 +479,32 @@ if __name__ == "__main__":
     # Run test matrix
     runner = BatchInferenceTestRunner()
     results = runner.run_test_matrix()
-    
+
     # Generate and save report
     report_path = "batch_inference_test_report.json"
     runner.save_report(report_path)
-    
+
     # Print summary
-    print(f"\\n{'='*60}")
+    print(f"\\n{'=' * 60}")
     print("TEST SUMMARY")
-    print(f"{'='*60}")
-    
+    print(f"{'=' * 60}")
+
     successful = [r for r in results if r.success]
     failed = [r for r in results if not r.success]
-    
+
     print(f"Total tests: {len(results)}")
     print(f"Successful: {len(successful)}")
     print(f"Failed: {len(failed)}")
-    
+
     if successful:
         best_test = max(successful, key=lambda x: x.throughput)
-        print(f"\\nBest performance:")
+        print("\\nBest performance:")
         print(f"  Model: {best_test.config.model_name}")
         print(f"  Batch Size: {best_test.config.batch_size}")
         print(f"  Concurrency: {best_test.config.concurrency}")
         print(f"  Throughput: {best_test.throughput:.2f} req/s")
-    
+
     if failed:
-        print(f"\\nFailed tests:")
+        print("\\nFailed tests:")
         for test in failed:
             print(f"  {test.config.model_name}: {test.error_message}")

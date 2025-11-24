@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Working Batch Inference Test for Ray Data LLM
-Fixed variable scoping and Ray initialization issues
+Fixed Batch Inference Test for Ray Data LLM
+Uses correct message format for vLLM processor
 """
 
 import json
@@ -61,9 +61,8 @@ def run_test_config(
     }
 
     try:
-        # Check if Ray is already initialized
-        if not ray.is_initialized():
-            ray.init(address="auto", ignore_reinit_error=True)
+        # Connect to existing Ray cluster
+        ray.init(address="auto")
 
         # Check GPU resources
         resources = ray.cluster_resources()
@@ -126,7 +125,7 @@ def run_test_config(
         # Build processor
         processor = build_llm_processor(
             vllm_config,
-            postprocess=postprocess_row,
+            postprocess=postprocess_fn,
         )
 
         # Run inference
@@ -178,7 +177,7 @@ def main():
     results = []
 
     for i, (model, batch_size, concurrency, expected) in enumerate(test_configs, 1):
-        print(f"\\n📊 Test {i}/{len(test_configs)}")
+        print(f"\n📊 Test {i}/{len(test_configs)}")
         print(f"Model: {model}")
         print(f"Batch Size: {batch_size}, Concurrency: {concurrency}")
         print(f"Expected: {expected}")
@@ -214,7 +213,7 @@ def main():
     with open("/tmp/batch_inference_test_results.json", "w") as f:
         json.dump(report, f, indent=2)
 
-    print(f"\\n{'=' * 60}")
+    print(f"\n{'=' * 60}")
     print("TEST SUMMARY")
     print(f"{'=' * 60}")
     print(f"Total tests: {len(results)}")
@@ -226,18 +225,18 @@ def main():
 
     if successful:
         best_test = max(successful, key=lambda x: x["throughput"])
-        print("\\nBest performance:")
+        print("\nBest performance:")
         print(f"  Model: {best_test['model']}")
         print(f"  Batch Size: {best_test['batch_size']}")
         print(f"  Concurrency: {best_test['concurrency']}")
         print(f"  Throughput: {best_test['throughput']:.2f} req/s")
 
     if failed:
-        print("\\nFailed tests:")
+        print("\nFailed tests:")
         for test in failed:
             print(f"  {test['model']}: {test['error']}")
 
-    print("\\n📄 Detailed results saved to: /tmp/batch_inference_test_results.json")
+    print("\n📄 Detailed results saved to: /tmp/batch_inference_test_results.json")
 
     return report
 

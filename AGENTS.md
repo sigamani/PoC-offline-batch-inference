@@ -15,7 +15,7 @@
 
 ### Functional Requirements
 - Build an offline batch inference server using Ray Data and vLLM
-- Use the official `ray.data.llm` module with `vLLMEngineProcessorConfig` and `build_llm_processor`
+- Use the official `ray.data.llm` module without alternatives
 - Use `ds.map_batches` for distributed processing
 
 ### Non-Functional Requirements
@@ -33,9 +33,10 @@
 
 ### Phase 2: Execution
 1. Follow the plan in `@todo.txt` sequentially
-2. If human asks for something that contradicts these instructions, STOP and ask for clarification
-3. Cross-check your own planning against these instructions
-4. If you find contradictions, research best practices and propose solutions to the human
+2. You must always use vLLMEngineProcessorConfig, build_llm_processor, and ds.map_batches. If you are missing one of these functions from Ray stop and ask why.
+3. If human asks for something that contradicts these instructions, STOP and ask for clarification
+4. Cross-check your own planning against these instructions
+5. If you find contradictions, research best practices and propose solutions to the human
 
 ---
 

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Working Batch Inference Test for Ray Data LLM
-Fixed variable scoping and Ray initialization issues
+Simplified Batch Inference Test for direct container execution
 """
 
 import json
@@ -61,9 +60,8 @@ def run_test_config(
     }
 
     try:
-        # Check if Ray is already initialized
-        if not ray.is_initialized():
-            ray.init(address="auto", ignore_reinit_error=True)
+        # Connect to existing Ray cluster
+        ray.init(address="auto")
 
         # Check GPU resources
         resources = ray.cluster_resources()
@@ -74,7 +72,7 @@ def run_test_config(
             result["error"] = "No GPUs available"
             return result
 
-        # Create test data with correct message format
+        # Create test data
         prompts = [
             "What is AI?",
             "Explain ML.",
@@ -84,22 +82,32 @@ def run_test_config(
         ] * (num_samples // 5 + 1)
 
         prompts = prompts[:num_samples]
-
-        # Convert to message format expected by Ray Data LLM
-        def create_message_data(prompt: str) -> Dict:
-            return {
-                "messages": [
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": prompt},
-                ]
-            }
-
-        message_data = [create_message_data(p) for p in prompts]
-        ds = ray.data.from_items(message_data)
+        ds = ray.data.from_items([{"prompt": prompt} for prompt in prompts])
 
         logger.info(f"Created dataset with {ds.count()} samples")
 
-        # Configure vLLM processor (no preprocess needed since we provide messages)
+        # Preprocess function
+        def preprocess_row(row: Dict, cfg: Dict) -> Dict:
+            return {
+                "prompt": row["prompt"],
+                "sampling_params": {
+                    "temperature": cfg["inference"]["temperature"],
+                    "max_tokens": cfg["inference"]["max_tokens"],
+                    "top_p": 0.9,
+                },
+            }
+
+        # Postprocess function
+        def postprocess_row(row: Dict) -> Dict:
+            generated_text = row.get("generated_text", "")
+            tokens = len(generated_text.split()) * 1.3
+            return {
+                "prompt": row.get("prompt", ""),
+                "response": generated_text,
+                "tokens": int(tokens),
+            }
+
+        # Configure vLLM processor
         vllm_config = vLLMEngineProcessorConfig(
             model_source=config["model"]["name"],
             concurrency=config["inference"]["concurrency"],
@@ -113,20 +121,14 @@ def run_test_config(
             },
         )
 
-        # Simple postprocess function
-        def postprocess_row(row: Dict) -> Dict:
-            generated_text = row.get("generated_text", "")
-            tokens = len(generated_text.split()) * 1.3
-            return {
-                "messages": row.get("messages", []),
-                "response": generated_text,
-                "tokens": int(tokens),
-            }
+        # Create processor
+        preprocess_fn = lambda row: preprocess_row(row, config)
+        postprocess_fn = lambda row: postprocess_row(row)
 
-        # Build processor
         processor = build_llm_processor(
             vllm_config,
-            postprocess=postprocess_row,
+            preprocess=preprocess_fn,
+            postprocess=postprocess_fn,
         )
 
         # Run inference
@@ -178,7 +180,7 @@ def main():
     results = []
 
     for i, (model, batch_size, concurrency, expected) in enumerate(test_configs, 1):
-        print(f"\\n📊 Test {i}/{len(test_configs)}")
+        print(f"\n📊 Test {i}/{len(test_configs)}")
         print(f"Model: {model}")
         print(f"Batch Size: {batch_size}, Concurrency: {concurrency}")
         print(f"Expected: {expected}")
@@ -214,7 +216,7 @@ def main():
     with open("/tmp/batch_inference_test_results.json", "w") as f:
         json.dump(report, f, indent=2)
 
-    print(f"\\n{'=' * 60}")
+    print(f"\n{'=' * 60}")
     print("TEST SUMMARY")
     print(f"{'=' * 60}")
     print(f"Total tests: {len(results)}")
@@ -226,18 +228,18 @@ def main():
 
     if successful:
         best_test = max(successful, key=lambda x: x["throughput"])
-        print("\\nBest performance:")
+        print("\nBest performance:")
         print(f"  Model: {best_test['model']}")
         print(f"  Batch Size: {best_test['batch_size']}")
         print(f"  Concurrency: {best_test['concurrency']}")
         print(f"  Throughput: {best_test['throughput']:.2f} req/s")
 
     if failed:
-        print("\\nFailed tests:")
+        print("\nFailed tests:")
         for test in failed:
             print(f"  {test['model']}: {test['error']}")
 
-    print("\\n📄 Detailed results saved to: /tmp/batch_inference_test_results.json")
+    print("\n📄 Detailed results saved to: /tmp/batch_inference_test_results.json")
 
     return report
 
