@@ -302,7 +302,7 @@ if __name__ == "__main__":
                 try:
                     output = json.loads(result.stdout.strip())
                     if output.get("success", False):
-                        print("✅ Test completed successfully!")
+                        print(" Test completed successfully!")
                         print(f"   Throughput: {output['throughput']:.2f} req/s")
                         print(f"   Tokens/sec: {output['tokens_per_sec']:.2f}")
                         print(f"   Total time: {output['total_time']:.2f}s")
@@ -316,7 +316,7 @@ if __name__ == "__main__":
                         )
                     else:
                         error_msg = output.get("error", "Unknown error")
-                        print(f"❌ Test failed: {error_msg}")
+                        print(f" Test failed: {error_msg}")
                         return TestResult(
                             config=config,
                             throughput=0.0,
@@ -326,7 +326,7 @@ if __name__ == "__main__":
                             error_message=error_msg,
                         )
                 except json.JSONDecodeError as e:
-                    print(f"❌ Failed to parse output: {e}")
+                    print(f" Failed to parse output: {e}")
                     print(f"Output: {result.stdout}")
                     return TestResult(
                         config=config,
@@ -338,7 +338,7 @@ if __name__ == "__main__":
                     )
             else:
                 error_msg = result.stderr.strip() or result.stdout.strip()
-                print(f"❌ Docker command failed: {error_msg}")
+                print(f" Docker command failed: {error_msg}")
                 return TestResult(
                     config=config,
                     throughput=0.0,
@@ -349,7 +349,7 @@ if __name__ == "__main__":
                 )
 
         except subprocess.TimeoutExpired:
-            print("❌ Test timed out after 10 minutes")
+            print(" Test timed out after 10 minutes")
             return TestResult(
                 config=config,
                 throughput=0.0,
@@ -359,7 +359,7 @@ if __name__ == "__main__":
                 error_message="Test timed out after 10 minutes",
             )
         except Exception as e:
-            print(f"❌ Unexpected error: {e}")
+            print(f" Unexpected error: {e}")
             return TestResult(
                 config=config,
                 throughput=0.0,
@@ -371,13 +371,13 @@ if __name__ == "__main__":
 
     def run_test_matrix(self) -> List[TestResult]:
         """Run complete test matrix"""
-        print("🚀 Starting Batch Inference Test Matrix in Docker")
+        print(" Starting Batch Inference Test Matrix in Docker")
 
         configs = self.create_test_configs()
         results = []
 
         for i, config in enumerate(configs, 1):
-            print(f"\\n📊 Test {i}/{len(configs)}")
+            print(f"\\n Test {i}/{len(configs)}")
             result = self.run_docker_test(config)
             results.append(result)
 

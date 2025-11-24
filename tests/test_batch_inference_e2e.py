@@ -197,7 +197,7 @@ class BatchInferenceTester:
 
             total_time = time.time() - start_time
 
-            print("✅ Test completed successfully!")
+            print(" Test completed successfully!")
             print(f"   Throughput: {throughput:.2f} req/s")
             print(f"   Tokens/sec: {tokens_per_sec:.2f}")
             print(f"   Total time: {total_time:.2f}s")
@@ -213,7 +213,7 @@ class BatchInferenceTester:
         except Exception as e:
             total_time = time.time() - start_time
             error_msg = str(e)
-            print(f"❌ Test failed: {error_msg}")
+            print(f" Test failed: {error_msg}")
 
             return TestResult(
                 config=test_config,
@@ -226,7 +226,7 @@ class BatchInferenceTester:
 
     def run_test_matrix(self) -> List[TestResult]:
         """Run the complete test matrix"""
-        print("🚀 Starting End-to-End Batch Inference Test Matrix")
+        print(" Starting End-to-End Batch Inference Test Matrix")
 
         # Test matrix from requirements
         test_configs = [
@@ -268,7 +268,7 @@ class BatchInferenceTester:
 
         results = []
         for i, test_config in enumerate(test_configs, 1):
-            print(f"\n📊 Test {i}/{len(test_configs)}")
+            print(f"\n Test {i}/{len(test_configs)}")
             result = self.run_single_test(test_config)
             results.append(result)
 

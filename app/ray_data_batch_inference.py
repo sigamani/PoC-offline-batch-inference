@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ray Data + vLLM distributed batch inference orchestration
+efRay Data + vLLM distributed batch inference orchestration
 Following official Ray Data batch inference documentation:
 https://docs.ray.io/en/latest/data/batch_inference.html
 """
@@ -92,10 +92,10 @@ class VLLMActor:
             )
 
             self.use_vllm = True
-            print(f"✅ vLLM model loaded on {self.node_id}")
+            print(f" vLLM model loaded on {self.node_id}")
 
         except Exception as e:
-            print(f"⚠ vLLM failed, falling back to transformers: {e}")
+            print(f" vLLM failed, falling back to transformers: {e}")
             self.load_transformers_fallback()
 
     def load_transformers_fallback(self):
@@ -117,10 +117,10 @@ class VLLMActor:
                 self.tokenizer.pad_token = self.tokenizer.eos_token
 
             self.use_vllm = False
-            print(f"✅ Transformers model loaded on {self.node_id}")
+            print(f" Transformers model loaded on {self.node_id}")
 
         except Exception as e:
-            print(f"❌ Failed to load model: {e}")
+            print(f" Failed to load model: {e}")
             raise
 
     def start_metrics_monitoring(self):
@@ -248,7 +248,7 @@ def initialize_ray_cluster():
         # Worker mode
         head_address = sys.argv[2] if len(sys.argv) > 2 else "localhost:6379"
         ray.init(address=head_address, _redis_password="ray123")
-        print(f"✅ Worker connected to {head_address}")
+        print(f" Worker connected to {head_address}")
     else:
         # Head mode
         ray.init(
@@ -257,7 +257,7 @@ def initialize_ray_cluster():
             dashboard_port=8265,
             _redis_password="ray123",
         )
-        print("🚀 Ray head node started")
+        print(" Ray head node started")
 
     # Create vLLM actors (one per GPU node)
     model_name = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-0.5B-Instruct")
@@ -276,7 +276,7 @@ def initialize_ray_cluster():
         vllm_actors.append(actor)
         print(f"Created VLLM actor on node {node['NodeID']}")
 
-    print(f"✅ Created {len(vllm_actors)} VLLM actors")
+    print(f" Created {len(vllm_actors)} VLLM actors")
 
 
 @app.get("/")

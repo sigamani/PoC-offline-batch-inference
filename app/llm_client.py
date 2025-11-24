@@ -91,9 +91,9 @@ def main():
         print("🔍 Checking server health...")
         health = client.health_check()
         if "error" in health:
-            print(f"❌ Health check failed: {health['error']}")
+            print(f" Health check failed: {health['error']}")
             return
-        print("✅ Server is healthy:")
+        print(" Server is healthy:")
         print(f"   Worker: {health.get('worker_id', 'Unknown')}")
         print(f"   Model: {health.get('model', 'Unknown')}")
         print(f"   Device: {health.get('device', 'Unknown')}")
@@ -105,7 +105,7 @@ def main():
 
     # Single prompt
     if args.prompt:
-        print("🚀 Processing single prompt...")
+        print(" Processing single prompt...")
         print(f"Prompt: {args.prompt[:100]}...")
 
         start_time = time.time()
@@ -113,10 +113,10 @@ def main():
         total_time = time.time() - start_time
 
         if "error" in result:
-            print(f"❌ Generation failed: {result['error']}")
+            print(f" Generation failed: {result['error']}")
             return
 
-        print("✅ Generation completed:")
+        print(" Generation completed:")
         print(f"   Text: {result['text']}")
         print(f"   Tokens: {result['tokens_generated']}")
         print(f"   Inference Time: {result['inference_time']:.2f}s")
@@ -134,7 +134,7 @@ def main():
                 prompts = [line.strip() for line in f if line.strip()]
             print(f"   Loaded {len(prompts)} prompts")
         except Exception as e:
-            print(f"❌ Failed to load file: {e}")
+            print(f" Failed to load file: {e}")
             return
     else:
         # Default batch prompts
@@ -152,7 +152,7 @@ def main():
         ]
         print(f"📝 Using {len(prompts)} default prompts")
 
-    print(f"🚀 Processing batch of {len(prompts)} prompts...")
+    print(f" Processing batch of {len(prompts)} prompts...")
     print(f"   Max Tokens: {args.max_tokens}")
     print(f"   Temperature: {args.temperature}")
 
@@ -161,10 +161,10 @@ def main():
     total_time = time.time() - start_time
 
     if "error" in result:
-        print(f"❌ Batch generation failed: {result['error']}")
+        print(f" Batch generation failed: {result['error']}")
         return
 
-    print(f"✅ Batch completed in {total_time:.2f}s")
+    print(f" Batch completed in {total_time:.2f}s")
     print(f"   Worker: {result['worker_id']}")
     print(f"   Total Time: {result['total_time']:.2f}s")
     print(
@@ -174,7 +174,7 @@ def main():
     total_tokens = 0
     total_inference_time = 0
 
-    print("\n📊 Results:")
+    print("\n Results:")
     for i, res in enumerate(result["results"]):
         total_tokens += res["tokens_generated"]
         total_inference_time += res["inference_time"]
