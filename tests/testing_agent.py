@@ -11,8 +11,7 @@ import json
 import logging
 import subprocess
 import traceback
-from typing import List, Dict, Any, Optional
-from pathlib import Path
+from typing import List, Dict, Any
 from dataclasses import dataclass
 
 # Try to import yaml, fallback if not available
@@ -624,7 +623,7 @@ except Exception as e:
         print(f"Total Duration: {total_duration:.2f}s")
         
         if failed > 0:
-            print(f"\nFailed Tests:")
+            print("\nFailed Tests:")
             for result in self.test_results:
                 if not result.success:
                     print(f"  ✗ {result.test_name}: {result.error_message}")

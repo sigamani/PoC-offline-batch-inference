@@ -6,7 +6,6 @@ Simplified SLA validation test that focuses on core SLA tracking logic
 import time
 import logging
 from dataclasses import dataclass
-from typing import List
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -95,7 +94,7 @@ def test_sla_calculation():
     assert eta_hours > 0, f"Invalid ETA: {eta_hours}"
     
     # Should be on track (25% in 6 hours = 100% in 24 hours)
-    assert sla_status == True, f"Should be on track but got SLA at risk"
+    assert sla_status == True, "Should be on track but got SLA at risk"
     
     logger.info("SLA calculation test PASSED")
     return True
@@ -122,7 +121,7 @@ def test_sla_violation_detection():
     logger.info(f"SLA Status: {'ON TRACK' if sla_status else 'AT RISK'}")
     
     # Should be at risk (only 10% in 8 hours = 100% in 80 hours > 12 hour SLA)
-    assert sla_status == False, f"Should detect SLA violation but got on track"
+    assert sla_status == False, "Should detect SLA violation but got on track"
     
     logger.info("SLA violation detection test PASSED")
     return True
@@ -168,7 +167,7 @@ def test_24hour_completion_monitoring():
     assert eta_hours > 0, "Invalid ETA calculation"
     
     # This should be on track (30% in 6 hours = 100% in 20 hours < 24 hours)
-    assert on_track == True, f"Should be on track for 24-hour SLA"
+    assert on_track == True, "Should be on track for 24-hour SLA"
     
     logger.info("24-hour completion monitoring test PASSED")
     return True

@@ -9,7 +9,6 @@ import sys
 import subprocess
 import argparse
 import re
-from pathlib import Path
 
 def check_and_remove_emojis(file_path: str) -> bool:
     """

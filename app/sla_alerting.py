@@ -4,9 +4,8 @@ Monitors job ETAs against 24-hour SLA windows and triggers alerts when at risk
 """
 
 import logging
-import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Optional, Callable, Any
 from enum import Enum
 from prometheus_client import Gauge, Counter
