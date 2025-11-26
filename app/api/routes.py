@@ -3,18 +3,19 @@ API routes with proper authentication and dependency injection
 """
 
 import logging
+import os
+import time
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
-from .core.context import get_context, set_context
-from .core.auth import TokenManager, rate_limiter
-from .core.config import get_config
-from .core.processor import VLLMProcessorFactory
-from .core.inference import InferencePipeline
-from .core.models import (
+from app.core.context import get_context, set_context
+from app.core.auth import TokenManager, rate_limiter
+from app.core.config import get_config
+from app.core.simple_processor import SimpleInferencePipeline, MockProcessor
+from app.core.models import (
     BatchInferenceRequest, BatchInferenceResponse,
     AuthBatchJobRequest, BatchJobResponse,
     InferenceResponse
@@ -25,8 +26,7 @@ logger = logging.getLogger(__name__)
 # Initialize components
 config = get_config()
 token_manager = TokenManager(os.getenv("JWT_SECRET", "default-secret"))
-processor_factory = VLLMProcessorFactory()
-inference_pipeline = InferencePipeline()
+inference_pipeline = SimpleInferencePipeline()
 
 # Security
 security = HTTPBearer(auto_error=False)
@@ -109,9 +109,7 @@ async def generate_batch(
         context = get_context()
         if not context.processor:
             # Initialize processor on first request
-            from .core.config import get_config
-            processor_config = get_config()
-            context.processor = processor_factory.build_processor(processor_config)
+            context.processor = MockProcessor()
             set_context(context)
         
         # Execute inference
@@ -152,9 +150,7 @@ async def start_batch_job(
         
         # Initialize processor if needed
         if not context.processor:
-            from .core.config import get_config
-            processor_config = get_config()
-            context.processor = processor_factory.build_processor(processor_config)
+            context.processor = MockProcessor()
             set_context(context)
         
         # Execute batch job

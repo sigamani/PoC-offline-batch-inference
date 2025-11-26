@@ -3,6 +3,7 @@ Configuration management with environment variable support
 """
 
 import os
+import logging
 from typing import Dict, Any
 from pydantic import BaseSettings
 

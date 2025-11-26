@@ -6,10 +6,9 @@ import logging
 from typing import Any, Dict, List
 from dataclasses import dataclass
 
-from .config import get_config
-from .context import get_context, set_context
-from .inference import InferencePipeline
-from .core.inference import BatchMetrics, InferenceMonitor, create_data_artifact, store_artifact
+from app.core.config import get_config
+from app.core.context import get_context, set_context
+from app.core.inference import BatchMetrics, InferenceMonitor, create_data_artifact, store_artifact
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +116,7 @@ class InferencePipeline:
         import time
         
         # Create metrics and monitor
-        from .core.inference import BatchMetrics, InferenceMonitor, SLATier
+        from app.core.inference import BatchMetrics, InferenceMonitor, SLATier
         
         config = get_config()
         sla_tier = getattr(SLATier, config["sla"]["tier"].upper(), SLATier.BASIC)
