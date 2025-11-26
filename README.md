@@ -1,12 +1,12 @@
 # Ray Data + vLLM Batch Inference
 
-## 🎯 Mission
+## Overview
 
 Build a production-ready offline batch inference server using Ray Data and vLLM that processes 1000+ requests within 24-hour SLA windows with proper authentication, monitoring, and observability.
 
 ---
 
-## 🏗 Architecture Overview
+## Architecture Overview
 
 ```
 ┌─────────────────────────────┐
@@ -57,30 +57,30 @@ Build a production-ready offline batch inference server using Ray Data and vLLM 
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
-### ✅ **Authentication & Security**
+### **Authentication & Security**
 - **JWT-based Authentication**: Bearer tokens with expiration and tier-based rate limiting
 - **Rate Limiting**: Per-tier request limits (Free: 100/hr, Basic: 500/hr, Premium: 2000/hr, Enterprise: 10000/hr)
 - **Token Management**: Generation, validation, revocation, and blacklisting
 
-### ✅ **Batch Processing**
+### **Batch Processing**
 - **Ray Data Integration**: Official `ray.data.llm` API with `vLLMEngineProcessorConfig`
 - **Adaptive Batching**: Dynamic batch size calculation based on available memory
 - **vLLM Optimization**: Chunked prefill, speculative decoding, KV cache optimization
 - **Multimodal Support**: Text, image, audio, and video processing capabilities
 
-### ✅ **SLA Management**
+### **SLA Management**
 - **Tier-based SLAs**: Free (72h), Basic (24h), Premium (12h), Enterprise (6h)
 - **Real-time Monitoring**: Progress tracking, ETA calculation, SLA risk assessment
 - **Automated Alerting**: SLA breach warnings and notifications
 
-### ✅ **Data Management**
+### **Data Management**
 - **SHA-based Artifacts**: Immutable data with content and SHA256 hashing
 - **Version Control**: Timestamped versions with audit trails
 - **Storage Options**: Local filesystem with S3 cloud integration
 
-### ✅ **Observability**
+### **Observability**
 - **Prometheus Metrics**: Throughput, tokens/sec, memory usage, error rates
 - **Grafana Dashboard**: Real-time monitoring and alerting
 - **Structured Logging**: JSON format for Loki integration
@@ -88,7 +88,7 @@ Build a production-ready offline batch inference server using Ray Data and vLLM 
 
 ---
 
-## 📊 Performance Characteristics
+## Performance Characteristics
 
 ### **Throughput Targets**
 - **Baseline**: 250-300 requests/second (128 batch, 2 concurrency)
@@ -107,7 +107,7 @@ Build a production-ready offline batch inference server using Ray Data and vLLM 
 
 ---
 
-## 🔧 Quick Start
+## Quick Start
 
 ### **Prerequisites**
 ```bash
@@ -194,7 +194,7 @@ curl http://localhost:8000/metrics
 
 ---
 
-## 🚀 Deployment Options
+## Deployment Options
 
 ### **Single Node (Development)**
 ```bash
@@ -218,7 +218,7 @@ export AWS_REGION=us-west-2
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ### **Test Matrix**
 - **Configurations**: 5 batch sizes × 4 concurrency levels × 3 model sizes = 60 permutations
