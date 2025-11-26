@@ -7,9 +7,9 @@ set -e
 echo "Setting up Ray Cluster for Batch Inference"
 
 # Configuration
-HEAD_SSH="ssh -p 59554 root@77.104.167.149"
-WORKER_SSH="ssh -p 55089 root@77.104.167.149"
-IMAGE="michaelsigamani/proj-grounded-telescopes:0.1.0"
+HEAD_SSH="ssh -p 22267 root@192.165.134.28"
+WORKER_SSH="ssh -p 22267 root@192.165.134.28"
+IMAGE="ray-vllm"
 
 # Function to check if container exists
 check_container() {

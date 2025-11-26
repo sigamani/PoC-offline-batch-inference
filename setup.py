@@ -14,8 +14,8 @@ from typing import Optional, Union
 
 class RayClusterSetup:
     def __init__(self):
-        self.head_ssh = "ssh -p 59554 root@77.104.167.149"
-        self.worker_ssh = "ssh -p 55089 root@77.104.167.149"
+        self.head_ssh = "ssh -p 22267 root@192.165.134.28"
+        self.worker_ssh = "ssh -p 22267 root@192.165.134.28"
         self.image = "michaelsigamani/proj-grounded-telescopes:0.1.0"
         self.project_root = Path(__file__).parent
         
@@ -40,7 +40,7 @@ class RayClusterSetup:
     def run_remote_command(self, ssh_cmd: str, remote_cmd: str, check: bool = True) -> Union[subprocess.CompletedProcess, subprocess.CalledProcessError]:
         """Run a command on remote host via SSH."""
         full_cmd = f"{ssh_cmd} '{remote_cmd}'"
-        return self.run_command(full_cmd, check=check)
+        return self.run_command(full_cmd, check=check)  
 
     def copy_files_to_remote(self):
         """Copy required files to remote hosts."""
@@ -49,14 +49,14 @@ class RayClusterSetup:
         # Copy batch inference file to both hosts
         batch_file = self.project_root / "app" / "ray_data_batch_inference.py"
         if batch_file.exists():
-            self.run_command(f"scp -P 59554 {batch_file} root@77.104.167.149:/tmp/", check=False)
-            self.run_command(f"scp -P 55089 {batch_file} root@77.104.167.149:/tmp/", check=False)
+            self.run_command(f"scp -P 22267 {batch_file} root@192.165.134.28:/tmp/", check=False)
+            self.run_command(f"scp -P 22267 {batch_file} root@192.165.134.28:/tmp/", check=False)
         
         # Copy config directory if it exists
         config_dir = self.project_root / "config"
         if config_dir.exists():
-            self.run_command(f"scp -P 59554 -r {config_dir} root@77.104.167.149:/tmp/", check=False)
-            self.run_command(f"scp -P 55089 -r {config_dir} root@77.104.167.149:/tmp/", check=False)
+            self.run_command(f"scp -P 22267 -r {config_dir} root@192.165.134.28:/tmp/", check=False)
+            self.run_command(f"scp -P 22267 -r {config_dir} root@192.165.134.28:/tmp/", check=False)
 
     def check_container_exists(self, container_name: str, ssh_cmd: str) -> bool:
         """Check if a Docker container exists on remote host."""

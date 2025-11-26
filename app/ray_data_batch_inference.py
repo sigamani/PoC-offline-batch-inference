@@ -157,7 +157,6 @@ metrics: BatchMetrics = None
 redis_client = None
 
 def load_config() -> Dict[str, Any]:
-    """Load configuration from YAML file"""
     global config
     config_path = os.environ.get("CONFIG_PATH", "/app/config/config.yaml")
     
@@ -198,7 +197,6 @@ def load_config() -> Dict[str, Any]:
         return config
 
 def initialize_redis():
-    """Initialize Redis client for job queue management"""
     global redis_client
     try:
         redis_host = os.environ.get("REDIS_HOST", "localhost")
@@ -221,7 +219,6 @@ def initialize_redis():
         redis_client = None
 
 def initialize_ray_cluster():
-    """Initialize Ray cluster"""
     if len(sys.argv) > 1 and sys.argv[1] == "worker":
         # Worker mode
         head_address = sys.argv[2] if len(sys.argv) > 2 else "localhost:6379"
@@ -299,7 +296,6 @@ def build_vllm_processor():
     logger.info("vLLM processor built successfully")
 
 
-# FastAPI app
 app = FastAPI(title="Ray Data vLLM Batch Inference", version="1.0.0")
 
 app.add_middleware(
