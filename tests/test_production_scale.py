@@ -14,9 +14,7 @@ from typing import Dict, Any
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-import pytest
 import ray
-from ray import data
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from app.ray_data_batch_inference import BatchMetrics, InferenceMonitor
@@ -292,7 +290,7 @@ if __name__ == "__main__":
         try:
             logger.info(f"Running: {test_name}...")
             test_func()
-            logger.info(f"  PASSED")
+            logger.info("  PASSED")
             results["tests"][test_name] = "PASSED"
             passed += 1
         except Exception as e:

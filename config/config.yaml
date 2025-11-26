@@ -1,27 +1,31 @@
 model:
   name: "Qwen/Qwen2.5-0.5B-Instruct"
-  max_model_len: 32768
+  max_model_len: 2048  # Further reduced for memory
   tensor_parallel_size: 1
-  enable_chunked_prefill: true
-  chunked_prefill_size: 8192
-  speculative_model: "Qwen/Qwen2.5-0.5B-Instruct"
-  num_speculative_tokens: 5
-  speculative_draft_tensor_parallel_size: 1
+  enable_chunked_prefill: false  # Disable for CPU
+  device: "cpu"  # Force CPU mode
+  trust_remote_code: true  # Allow model loading
 
 inference:
-  batch_size: 256
-  concurrency: 4
-  max_num_batched_tokens: 16384
-  gpu_memory_utilization: 0.85
+  batch_size: 32  # Reduced for memory
+  concurrency: 2  # Reduced for CPU cores
+  max_num_batched_tokens: 2048  # Reduced
+  gpu_memory_utilization: 0.5  # Not used but kept for compatibility
   temperature: 0.7
-  max_tokens: 512
+  max_tokens: 256  # Reduced for memory
 
 data:
-  input_path: "s3://bucket/sharegpt_sample.json"
+  input_path: "tests/sample_data.json"  # Use local test data
   output_path: "/tmp/output.json"
-  num_samples: 100000
+  num_samples: 100  # Reduced for testing
 
 sla:
   target_hours: 24
   buffer_factor: 0.7
   alert_threshold_hours: 20
+
+# Codespace-specific settings
+codespace:
+  memory_limit_gb: 14  # Leave headroom
+  cpu_cores: 4
+  disable_gpu: true

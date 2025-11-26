@@ -8,10 +8,9 @@ import json
 import time
 import logging
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict, List
 from dataclasses import dataclass, asdict
 from datetime import datetime
-from pathlib import Path
 
 logging.basicConfig(
     level=logging.INFO,

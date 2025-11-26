@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
 
 class RayClusterSetup:

@@ -10,11 +10,9 @@ import time
 import json
 import yaml
 import logging
-from typing import Dict, List, Tuple
-from dataclasses import dataclass, asdict
-from pathlib import Path
+from typing import Dict, List
+from dataclasses import dataclass
 import unittest
-from unittest.mock import Mock, patch, MagicMock
 
 # Add app directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'app'))
@@ -289,7 +287,7 @@ class SLAValidator:
         
         # Check if on track
         if eta_hours > (sla_hours - elapsed_time_hours):
-            sla_warnings.append(f"Not on track for SLA completion")
+            sla_warnings.append("Not on track for SLA completion")
         
         result = SLATestResult(
             test_name="Progress Tracking Accuracy",
