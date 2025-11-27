@@ -22,7 +22,7 @@ RUN python3 -m pip install --no-cache-dir \
     --index-url https://download.pytorch.org/whl/cpu
 
 # Install core dependencies first
-RUN python3 -m pip install --no-cache-dir ray[data]==2.49.1 vllm==0.10.0
+RUN python3 -m pip install --no-cache-dir ray[default]==2.49.1 vllm==0.10.0
 
 # Install remaining dependencies  
 RUN python3 -m pip install --no-cache-dir \

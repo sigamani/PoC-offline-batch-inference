@@ -33,28 +33,23 @@ class VLLMProcessorFactory:
     
     def _build_fallback_processor(self, processor_config: VLLMProcessorConfig, metrics: BatchMetrics, monitor: InferenceMonitor):
         """Build fallback processor when Ray Data LLM is not available"""
-        def fallback_processor(batch):
-            """Simple fallback processor for testing - batch is a dict from ds.map_batches"""
-            batch_results = []
+        def fallback_processor(row):
+            """Simple fallback processor for testing - Ray Data passes individual rows"""
+            # Handle individual row format from Ray Data
+            prompt = row.get("prompt", "")
             
-            # Handle the batch format from Ray Data
-            prompts = batch.get('prompt', [])
-            if isinstance(prompts, (list, tuple)):
-                for prompt in prompts:
-                    # Simple mock inference
-                    response = f"Mock response for: {str(prompt)[:50]}..."
-                    tokens = len(response.split())
-                    
-                    monitor.update(batch_size=1, tokens=tokens)
-                    
-                    batch_results.append({
-                        "response": response,
-                        "prompt": str(prompt),
-                        "tokens": tokens,
-                        "processing_time": 0.001
-                    })
+            # Simple mock inference
+            response = f"Mock response for: {str(prompt)[:50]}..."
+            tokens = len(response.split())
             
-            return {"results": batch_results}
+            monitor.update(batch_size=1, tokens=tokens)
+            
+            return {
+                "response": response,
+                "prompt": str(prompt),
+                "tokens": tokens,
+                "processing_time": 0.001
+            }
         
         return fallback_processor
     
@@ -79,35 +74,80 @@ class VLLMProcessorFactory:
         }
     
     def create_preprocess_fn(self, config):
-        """Create preprocessing function"""
-        def preprocess(row: Dict) -> Dict:
-            return {
-                "messages": [
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": row.get("prompt", "")}
-                ],
-                "sampling_params": {
-                    "temperature": config.inference.temperature,
-                    "max_tokens": config.inference.max_tokens,
+        """Create preprocessing function for Ray Data"""
+        def preprocess(batch: Dict) -> Dict:
+            # Ray Data build_llm_processor passes batches as dicts with arrays
+            prompts = batch.get("prompt", [])
+            logger.info(f"[PREPROCESS] Processing batch of {len(prompts)} prompts")
+            
+            # For Instruct models, use messages format (OpenAI chat format)
+            model_name = config.model.name
+            if "Instruct" in model_name:
+                # Use OpenAI chat format for vLLM
+                messages_list = []
+                for prompt in prompts:
+                    messages_list.append([
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": str(prompt)}
+                    ])
+                
+                result = {
+                    "messages": messages_list,
+                    "sampling_params": {
+                        "temperature": config.inference.temperature,
+                        "max_tokens": config.inference.max_tokens,
+                    }
                 }
-            }
+            else:
+                # Raw prompt for base models
+                result = {
+                    "prompt": [str(p) for p in prompts],
+                    "sampling_params": {
+                        "temperature": config.inference.temperature,
+                        "max_tokens": config.inference.max_tokens,
+                    }
+                }
+            
+            logger.info(f"[PREPROCESS] Output keys: {result.keys()}")
+            return result
         return preprocess
     
     def create_postprocess_fn(self, metrics: BatchMetrics, monitor: InferenceMonitor):
         """Create postprocessing function with metrics tracking"""
-        def postprocess(row: Dict) -> Dict:
-            # Estimate tokens
-            generated_text = row.get("generated_text", "")
-            tokens = len(generated_text.split()) * 1.3
+        def postprocess(batch: Dict) -> Dict:
+            # Debug logging to understand vLLM output format
+            logger.info(f"[POSTPROCESS] Input keys: {batch.keys()}")
             
-            # Update metrics
-            monitor.update(batch_size=1, tokens=int(tokens))
+            # vLLM returns generated_text field as array
+            generated_texts = batch.get("generated_text", [])
+            original_prompts = batch.get("prompt", [])
             
+            results = []
+            total_tokens = 0
+            
+            for i, generated_text in enumerate(generated_texts):
+                # Estimate tokens more accurately
+                tokens = len(str(generated_text).split()) if generated_text else 0
+                total_tokens += tokens
+                
+                result = {
+                    "response": generated_text,
+                    "prompt": original_prompts[i] if i < len(original_prompts) else "",
+                    "tokens": tokens,
+                    "processing_time": 0.001
+                }
+                results.append(result)
+            
+            # Update metrics for the entire batch
+            monitor.update(batch_size=len(results), tokens=total_tokens)
+            
+            logger.info(f"[POSTPROCESS] Processed batch of {len(results)} results")
+            # Convert list of results back to batch format for Ray Data
             return {
-                "response": generated_text,
-                "prompt": row.get("prompt", ""),
-                "tokens": int(tokens),
-                "processing_time": 0.001
+                "response": [r["response"] for r in results],
+                "prompt": [r["prompt"] for r in results],
+                "tokens": [r["tokens"] for r in results],
+                "processing_time": [r["processing_time"] for r in results]
             }
         return postprocess
     
@@ -132,6 +172,7 @@ class VLLMProcessorFactory:
                     "num_speculative_tokens": processor_config.num_speculative_tokens,
                     "speculative_draft_tensor_parallel_size": 1,
                     "trust_remote_code": True,
+                    "device": "cpu",  # Force CPU mode
                 }
             )
             
@@ -163,13 +204,11 @@ class InferencePipeline:
             import time
             
             # Create metrics and monitor
-            from app.core.inference import BatchMetrics, InferenceMonitor, SLATier
+            from app.core.inference import BatchMetrics, InferenceMonitor
             
             config = get_config()
-            sla_tier = getattr(SLATier, config.sla.tier.upper(), SLATier.BASIC)
-            
             metrics = BatchMetrics(total_requests=len(prompts))
-            monitor = InferenceMonitor(metrics, sla_tier)
+            monitor = InferenceMonitor(metrics)
             
             # Create Ray dataset from prompts
             ds = ray.data.from_items([{"prompt": prompt} for prompt in prompts])
@@ -178,15 +217,12 @@ class InferencePipeline:
             # Build processor using mandatory Ray Data LLM APIs
             processor = self.factory.build_processor(processor_config, metrics, monitor)
             
-            # Execute inference using mandatory ds.map_batches() API
-            logger.info("Starting batch inference with ds.map_batches()")
+            # Execute inference using the processor directly
+            logger.info("Starting batch inference with Ray Data LLM processor")
             start_time = time.time()
             
-            result_ds = ds.map_batches(
-                processor,
-                batch_size=processor_config.batch_size,
-                concurrency=processor_config.concurrency
-            )
+            # The build_llm_processor already handles map_batches internally
+            result_ds = processor(ds)
             results = result_ds.take_all()
             
             inference_time = time.time() - start_time
@@ -206,13 +242,12 @@ class InferencePipeline:
     def _execute_fallback(self, prompts: List[str], processor_config: VLLMProcessorConfig) -> List[Dict]:
         """Fallback execution without Ray"""
         import time
-        from app.core.inference import BatchMetrics, InferenceMonitor, SLATier
+        from app.core.inference import BatchMetrics, InferenceMonitor
         
         config = get_config()
-        sla_tier = getattr(SLATier, config.sla.tier.upper(), SLATier.BASIC)
         
         metrics = BatchMetrics(total_requests=len(prompts))
-        monitor = InferenceMonitor(metrics, sla_tier)
+        monitor = InferenceMonitor(metrics)
         
         # Simple mock processing
         results = []

@@ -42,22 +42,13 @@ class BatchMetrics:
         remaining = self.total_requests - self.completed_requests
         return (remaining / throughput) / 3600
 
-@dataclass
-class SLATier:
-    """Service level agreement tiers"""
-    FREE = {"name": "free", "hours": 72, "priority": 1}
-    BASIC = {"name": "basic", "hours": 24, "priority": 2}
-    PREMIUM = {"name": "premium", "hours": 12, "priority": 3}
-    ENTERPRISE = {"name": "enterprise", "hours": 6, "priority": 4}
+
 
 @dataclass
 class InferenceMonitor:
-    """SLA monitoring with tier-based tracking"""
-    def __init__(self, metrics: BatchMetrics, sla_tier: dict, log_interval: int = 100):
+    """Simple monitoring without SLA tiers"""
+    def __init__(self, metrics: BatchMetrics, log_interval: int = 100):
         self.metrics = metrics
-        self.sla_tier = sla_tier
-        self.sla_hours = sla_tier["hours"]
-        self.priority = sla_tier["priority"]
         self.log_interval = log_interval
         self.last_log = 0
     
@@ -67,7 +58,6 @@ class InferenceMonitor:
         
         if self.metrics.completed_requests - self.last_log >= self.log_interval:
             self.log_progress()
-            self.check_sla()
             self.last_log = self.metrics.completed_requests
     
     def log_progress(self):
@@ -76,20 +66,10 @@ class InferenceMonitor:
             f"Completed: {self.metrics.completed_requests}/{self.metrics.total_requests} | "
             f"Throughput: {self.metrics.throughput_per_sec():.2f} req/s | "
             f"Tokens/sec: {self.metrics.tokens_per_sec():.2f} | "
-            f"ETA: {self.metrics.eta_hours():.2f}h | "
-            f"Tier: {self.sla_tier['name']} | "
-            f"Failed: {self.metrics.failed_requests}"
+            f"ETA: {self.metrics.eta_hours():.2f}h"
         )
     
     def check_sla(self) -> bool:
-        eta = self.metrics.eta_hours()
-        elapsed_hours = (time.time() - self.metrics.start_time) / 3600
-        remaining_hours = self.sla_hours - elapsed_hours
-        
-        buffer = 0.1
-        if eta > remaining_hours + buffer:
-            logger.warning(f"SLA AT RISK! Tier {self.sla_tier['name']} ETA {eta:.2f}h > Remaining {remaining_hours:.2f}h")
-            return False
         return True
 
 def create_data_artifact(data: List[Dict]) -> DataArtifact:
