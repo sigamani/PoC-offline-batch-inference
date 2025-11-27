@@ -1,11 +1,7 @@
-"""
-Configuration management with environment variable support
-"""
-
 import os
 import logging
 from typing import Dict, Any
-from pydantic import BaseSettings
+from pydantic import BaseSettings, Field
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +11,7 @@ class ModelConfig(BaseSettings):
     max_model_len: int = 32768
     tensor_parallel_size: int = 2
     
-    class Config:
+    class ModelConfig:
         env_prefix = "MODEL_"
 
 class InferenceConfig(BaseSettings):
@@ -43,6 +39,7 @@ class SLAConfig(BaseSettings):
     target_hours: float = 24.0
     buffer_factor: float = 0.7
     alert_threshold_hours: float = 20.0
+    tier: str = "basic"
     
     class Config:
         env_prefix = "SLA_"

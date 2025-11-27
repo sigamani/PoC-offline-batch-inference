@@ -202,18 +202,7 @@ curl http://localhost:8000/metrics
 docker-compose up -d
 ```
 
-### **Multi-Node (Production)**
-```bash
-# Deploy with monitoring stack
-docker-compose -f docker-compose.prod.yml up -d
 ```
-
-### **Cloud Integration**
-```bash
-# Configure S3 backend
-export STORAGE_BACKEND=s3
-export S3_BUCKET=your-bucket
-export AWS_REGION=us-west-2
 ```
 
 ---

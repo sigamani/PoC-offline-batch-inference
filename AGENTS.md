@@ -2,16 +2,13 @@
 
 ## Environment Setup
 
-**CRITICAL**: All work happens on a rented Ubuntu VM from vast.ai, NOT locally.
-
-1
-2. **Verify Docker**: Run `docker ps` to check running containers
-3. **Build and run lightweight dev Image**: Dockerfile.dev this is made to be lightweight for faster iteration and testing in github codespace. Use this for development and testing before moving to the full image. No GPU acceleration. 
+1. **Verify Docker**: Run `docker ps` to check running containers
+2. **Build and run lightweight dev Image**: Dockerfile.dev this is made to be lightweight for faster iteration and testing in github codespace. Use this for development and testing before moving to the full image. No GPU acceleration. 
    ```bash
-   docker build -f Dockerfile.dev -t proj-grounded-telescopes-dev .
-   docker run -it --rm -v $(pwd):/app proj-grounded-telescopes-dev /bin/bash
+   docker build -f Dockerfile.dev -t .
+   docker run -it --rm -v $(pwd):/app <name> /bin/bash
    ```
-4. **Container Rule**: Do not install python packgages outside of the docker container unless needed to keep the space light. We only have 30 GiG to test. All packages will be build inside the Dockerfile.dev container.
+4. **Container Rule**: DO NOT install python packgages outside of the docker container unless needed to keep the space light. We only have 30 GiG to test. All packages will be build inside the Dockerfile.dev container.
 5. The github repository for this project that you are in a git clone of is located here: [gh repo clone sigamani/proj-grounded-telescopes](https://github.com/sigamani/doubleword-technical)
 
 ---
@@ -90,7 +87,7 @@
 ### Phase 1: Read Before Planning
 1. Read ALL documents in `@doc`, `@app`, and `@config` directories
 2. Review the plan in PLAN (below) and check what has been implemented from that in the code base (test if necessary) and then move to either fixing gaps or moving to the next step
-
+3. 
 ### Phase 2: Execution
 2. If human asks for something that contradicts any of the the previous ways of working or instructions that do not follow good AI development practice, or instructions that will probably derail the main plan then STOP and ask for clarification and confirmation before proceeding. You are doing the user a favour by calling out bad ideas.
 3. Cross-check your own planning against these instructions
@@ -158,101 +155,3 @@ logger.error("Failed to initialize Ray")
 □ Does this change align with the 24-hour SLA requirement?
 □ Have I cross-checked against @todo.txt?
 ```
-r
-
----
-
-## Testing Symbiote Subagent
-
-### Overview
-
-The Testing Symbiote (`testing_symbiote.py`) is a specialized quality-assurance subagent paired with Troels for the sigamani/doubleword-technical repository. Its function is to continuously evaluate, stabilize, and harden the test suite.
-
-### Mission
-
-Every time the Testing Symbiote is invoked, it performs the following operations in strict sequence:
-
-1. **Run the complete test matrix** (batch size × concurrency × model-size permutations) using the exact configurations currently defined in the repository
-2. **If any tests fail:**
-   - Diagnose which failure modes were introduced
-   - Apply targeted fixes to restore functionality  
-   - Re-run the test matrix to verify repairs
-3. **Generate a comprehensive report** with performance metrics and recommendations
-
-### Test Matrix Configurations
-
-The Testing Symbiote tests these permutations:
-- **Baseline configurations**: Small, medium, large batch sizes with Qwen2.5-0.5B
-- **High concurrency tests**: Up to 16 concurrent workers
-- **Large model tests**: Qwen2.5-7B with optimized parameters
-- **Stress tests**: Maximum batch sizes and concurrency limits
-- **SLA validation tests**: 24-hour completion window validation
-
-### Usage
-
-#### Command Line Interface
-```bash
-# Run complete test matrix
-python3 testing_symbiote.py --verbose
-
-# Custom report location
-python3 testing_symbiote.py --report-file symbiote_report.json
-
-# Custom repository root
-python3 testing_symbiote.py --repo-root /path/to/repo
-```
-
-#### Integration with Opencode
-
-**As Subagent:**
-```python
-# Activate testing symbiote via task system
-task(
-    description="Run symbiote test matrix",
-    prompt="Execute Testing Symbiote for comprehensive test matrix execution and repair",
-    subagent_type="testing-symbiote"
-)
-```
-
-**Manual Execution:**
-```bash
-# Direct execution
-./testing_symbiote.py --verbose
-```
-
-### Failure Mode Diagnosis
-
-The Testing Symbiote automatically categorizes and fixes:
-- **Performance timeouts**: Reduces batch sizes or increases timeouts
-- **Memory exhaustion**: Creates memory-optimized configurations
-- **Dependency issues**: Installs missing Ray, vLLM, and PyTorch dependencies
-- **Ray cluster issues**: Restarts Ray cluster connectivity
-- **Unknown errors**: Flags for manual investigation
-
-### Reporting
-
-The Testing Symbiote generates comprehensive reports including:
-- Test matrix execution summary
-- Performance metrics (throughput, tokens/sec, memory usage)
-- Failure mode analysis with categorization
-- Repair success rates
-- Performance recommendations
-- Best performing configuration identification
-
----
-
-**The Testing Agent ensures repository reliability, catches issues early, and maintains high code quality standards for production deployment.**
-
-**The Testing Symbiote provides specialized matrix testing and automated repair capabilities for the sigamani/doubleword-technical repository, ensuring robust performance across all configuration permutations.**
-
-### PLAN
-
-1. Authentication: issue a bearer token and inject it into the user’s curl request payload.
-
-3. Data serialization: use SHA-based identifiers so all data is immutable, and store artifacts in a versioned store such as S3.
-
-4. Logging: for the proof-of-concept I will write logs and metrics to a local output directory, but I will note production options such as Loki and Promtail.
-
-5. Dashboarding: most teams use Grafana; for the proof-of-concept I will expose metrics as a local JSON file for simplicity.
-
-6. Main Dependencies for PoC: Ray 2.4.9, vLLM 0.10.0, PyTorch, Hugging Face Hub, Transformers, Redis, Prometheus, FastAPI, Uvicorn, and Pydantic.

@@ -15,7 +15,7 @@ inference:
   max_tokens: 256  # Reduced for memory
 
 data:
-  input_path: "tests/sample_data.json"  # Use local test data
+  input_path: "tests/sample_data.json"  #use sharegpt data and input/output length config parameters to find relevant prompts
   output_path: "/tmp/output.json"
   num_samples: 100  # Reduced for testing
 

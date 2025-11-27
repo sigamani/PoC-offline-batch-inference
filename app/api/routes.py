@@ -1,7 +1,3 @@
-"""
-API routes with proper authentication and dependency injection
-"""
-
 import logging
 import os
 import time
@@ -12,10 +8,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 
 from app.core.context import get_context, set_context
-from app.core.auth import TokenManager, rate_limiter
+from app.api.auth import TokenManager, rate_limiter
 from app.core.config import get_config
 from app.core.simple_processor import SimpleInferencePipeline, MockProcessor
-from app.core.models import (
+from app.models.schemas import (
     BatchInferenceRequest, BatchInferenceResponse,
     AuthBatchJobRequest, BatchJobResponse,
     InferenceResponse
