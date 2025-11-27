@@ -153,9 +153,9 @@ if __name__ == "__main__":
             
             for i, item in enumerate(results):
                 print(f"\nResult {i+1}:")
-                print(f"Input: {item['input']['prompt']}")
-                print(f"Output: {item['output_text']}")
-                print(f"Tokens: {item['tokens_generated']}")
+                print(f"Input: {item.get('prompt', 'N/A')}")
+                print(f"Output: {item.get('response', 'N/A')}")
+                print(f"Tokens: {item.get('tokens', 0)}")
         
     except TimeoutError as e:
         print(f"Timeout: {e}")
