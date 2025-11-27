@@ -33,33 +33,28 @@ class VLLMProcessorFactory:
     
     def _build_fallback_processor(self, processor_config: VLLMProcessorConfig, metrics: BatchMetrics, monitor: InferenceMonitor):
         """Build fallback processor when Ray Data LLM is not available"""
-        def fallback_processor(ds):
-            """Simple fallback processor for testing"""
-            results = []
-            for batch in ds.iter_batches(batch_size=processor_config.batch_size):
-                batch_results = []
-                for row in batch:
+        def fallback_processor(batch):
+            """Simple fallback processor for testing - batch is a dict from ds.map_batches"""
+            batch_results = []
+            
+            # Handle the batch format from Ray Data
+            prompts = batch.get('prompt', [])
+            if isinstance(prompts, (list, tuple)):
+                for prompt in prompts:
                     # Simple mock inference
-                    response = f"Mock response for: {row.get('prompt', '')[:50]}..."
+                    response = f"Mock response for: {str(prompt)[:50]}..."
                     tokens = len(response.split())
                     
                     monitor.update(batch_size=1, tokens=tokens)
                     
                     batch_results.append({
                         "response": response,
-                        "prompt": row.get("prompt", ""),
+                        "prompt": str(prompt),
                         "tokens": tokens,
                         "processing_time": 0.001
                     })
-                results.extend(batch_results)
             
-            # Return as a simple dataset-like object
-            class SimpleDataset:
-                def __init__(self, data):
-                    self.data = data
-                def take_all(self):
-                    return self.data
-            return SimpleDataset(results)
+            return {"results": batch_results}
         
         return fallback_processor
     
@@ -117,18 +112,37 @@ class VLLMProcessorFactory:
         return postprocess
     
     def build_processor(self, processor_config: VLLMProcessorConfig, metrics: BatchMetrics, monitor: InferenceMonitor):
-        """Build complete vLLM processor"""
+        """Build complete vLLM processor using mandatory Ray Data LLM APIs"""
         try:
             from ray.data.llm import vLLMEngineProcessorConfig, build_llm_processor
             
-            vllm_config = self.create_processor_config(processor_config)
+            # Create vLLM engine processor configuration
+            vllm_engine_config = vLLMEngineProcessorConfig(
+                model_source=processor_config.model_name,
+                concurrency=processor_config.concurrency,
+                batch_size=processor_config.batch_size,
+                engine_kwargs={
+                    "max_num_batched_tokens": processor_config.max_num_batched_tokens,
+                    "max_model_len": processor_config.max_model_len,
+                    "gpu_memory_utilization": processor_config.gpu_memory_utilization,
+                    "tensor_parallel_size": processor_config.tensor_parallel_size,
+                    "enable_chunked_prefill": processor_config.enable_chunked_prefill,
+                    "chunked_prefill_size": processor_config.chunked_prefill_size,
+                    "enable_speculative_decoding": processor_config.enable_speculative_decoding,
+                    "num_speculative_tokens": processor_config.num_speculative_tokens,
+                    "speculative_draft_tensor_parallel_size": 1,
+                    "trust_remote_code": True,
+                }
+            )
+            
             preprocess_fn = self.create_preprocess_fn(self.config)
             postprocess_fn = self.create_postprocess_fn(metrics, monitor)
             
             logger.info(f"Building vLLM processor for {processor_config.model_name}")
             
+            # Use mandatory build_llm_processor API
             return build_llm_processor(
-                vllm_config,
+                vllm_engine_config,
                 preprocess=preprocess_fn,
                 postprocess=postprocess_fn
             )
@@ -143,7 +157,7 @@ class InferencePipeline:
         self.factory = processor_factory
     
     def execute_batch(self, prompts: List[str], processor_config: VLLMProcessorConfig) -> List[Dict]:
-        """Execute batch inference with full pipeline"""
+        """Execute batch inference with full pipeline using mandatory Ray Data APIs"""
         try:
             import ray
             import time
@@ -157,15 +171,15 @@ class InferencePipeline:
             metrics = BatchMetrics(total_requests=len(prompts))
             monitor = InferenceMonitor(metrics, sla_tier)
             
-            # Create dataset
+            # Create Ray dataset from prompts
             ds = ray.data.from_items([{"prompt": prompt} for prompt in prompts])
-            logger.info(f"Created dataset with {ds.count()} samples")
+            logger.info(f"Created Ray dataset with {ds.count()} samples")
             
-            # Build processor
+            # Build processor using mandatory Ray Data LLM APIs
             processor = self.factory.build_processor(processor_config, metrics, monitor)
             
-            # Execute inference using map_batches
-            logger.info("Starting batch inference...")
+            # Execute inference using mandatory ds.map_batches() API
+            logger.info("Starting batch inference with ds.map_batches()")
             start_time = time.time()
             
             result_ds = ds.map_batches(

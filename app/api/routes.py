@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from app.core.context import get_context, set_context
 from app.api.auth import TokenManager, rate_limiter
 from app.core.config import get_config
-from app.core.simple_processor import SimpleInferencePipeline, MockProcessor
+from app.core.simple_processor import SimpleInferencePipeline, VLLMProcessor
 from app.models.schemas import (
     BatchInferenceRequest, BatchInferenceResponse,
     AuthBatchJobRequest, BatchJobResponse,
@@ -105,7 +105,7 @@ async def generate_batch(
         context = get_context()
         if not context.processor:
             # Initialize processor on first request
-            context.processor = MockProcessor()
+            context.processor = VLLMProcessor("Qwen/Qwen2.5-0.5B-Instruct")
             set_context(context)
         
         # Execute inference
@@ -146,7 +146,7 @@ async def start_batch_job(
         
         # Initialize processor if needed
         if not context.processor:
-            context.processor = MockProcessor()
+            context.processor = VLLMProcessor("Qwen/Qwen2.5-0.5B-Instruct")
             set_context(context)
         
         # Execute batch job

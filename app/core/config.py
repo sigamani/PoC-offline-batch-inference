@@ -1,20 +1,20 @@
 import os
 import logging
 from typing import Dict, Any
-from pydantic import BaseSettings, Field
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-class ModelConfig(BaseSettings):
+class ModelConfig(BaseModel):
     """Model configuration with validation"""
     name: str = "Qwen/Qwen2.5-0.5B-Instruct"
     max_model_len: int = 32768
     tensor_parallel_size: int = 2
-    
-    class ModelConfig:
-        env_prefix = "MODEL_"
+    enable_chunked_prefill: bool = False
+    device: str = "cpu"
+    trust_remote_code: bool = True
 
-class InferenceConfig(BaseSettings):
+class InferenceConfig(BaseModel):
     """Inference parameters with validation"""
     batch_size: int = 128
     concurrency: int = 2
@@ -22,39 +22,27 @@ class InferenceConfig(BaseSettings):
     max_tokens: int = 512
     max_num_batched_tokens: int = 16384
     gpu_memory_utilization: float = 0.90
-    
-    class Config:
-        env_prefix = "INFERENCE_"
 
-class StorageConfig(BaseSettings):
+class StorageConfig(BaseModel):
     """Storage configuration"""
     local_path: str = "/tmp/artifacts"
     s3_bucket: str = "batch-inference-artifacts"
-    
-    class Config:
-        env_prefix = "STORAGE_"
 
-class SLAConfig(BaseSettings):
+class SLAConfig(BaseModel):
     """SLA configuration with tier support"""
     target_hours: float = 24.0
     buffer_factor: float = 0.7
     alert_threshold_hours: float = 20.0
     tier: str = "basic"
-    
-    class Config:
-        env_prefix = "SLA_"
 
-class MonitoringConfig(BaseSettings):
+class MonitoringConfig(BaseModel):
     """Monitoring and logging configuration"""
     log_level: str = "INFO"
     prometheus_port: int = 8001
     grafana_enabled: bool = False
     loki_enabled: bool = False
-    
-    class Config:
-        env_prefix = "MONITORING_"
 
-class AppConfig(BaseSettings):
+class AppConfig(BaseModel):
     """Main application configuration"""
     model: ModelConfig = ModelConfig()
     inference: InferenceConfig = InferenceConfig()
@@ -80,5 +68,5 @@ class AppConfig(BaseSettings):
 
 def get_config() -> AppConfig:
     """Get application configuration"""
-    config_path = os.getenv("CONFIG_PATH", "/app/config/config.yaml")
+    config_path = os.getenv("CONFIG_PATH", "config.yaml")
     return AppConfig.from_yaml(config_path)
