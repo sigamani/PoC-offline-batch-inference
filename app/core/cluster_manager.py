@@ -18,6 +18,7 @@ def initialize_ray_cluster() -> bool:
             logger.info("Initializing Ray cluster in CPU mode")
             ray.init(
                 log_to_driver=True,
+                object_store_memory=int(3.0 * 1024**3),
                 _system_config={
                     "metrics_report_interval_ms": 1000,
                 }
@@ -27,6 +28,7 @@ def initialize_ray_cluster() -> bool:
             logger.info("Initializing Ray cluster in GPU mode")
             ray.init(
                 log_to_driver=True,
+                object_store_memory=int(3.0 * 1024**3),
                 _system_config={
                     "metrics_report_interval_ms": 1000,
                 }

@@ -166,25 +166,45 @@ async def get_job_status(job_id: str):
 
 @app.get("/metrics")
 async def metrics():
-    """Prometheus metrics endpoint"""
+    """Prometheus metrics endpoint with simplified components"""
     if generate_latest is None:
-        return {"error": "Prometheus client not available"}
-    
-    # Simple metrics for now
-    metrics_data = f"""# HELP ray_vllm_active_jobs Number of active batch jobs
+        # Simple text metrics fallback
+        active_jobs = len([j for j in job_manager.jobs.values() if j.status.value in ['queued', 'running']])
+        total_jobs = len(job_manager.jobs)
+        
+        metrics_data = f"""# HELP ray_vllm_active_jobs Number of active batch jobs
 # TYPE ray_vllm_active_jobs gauge
-ray_vllm_active_jobs {len([j for j in job_manager.jobs.values() if j.status.value in ['queued', 'running']])}
+ray_vllm_active_jobs {active_jobs}
 
 # HELP ray_vllm_total_jobs Total number of jobs
 # TYPE ray_vllm_total_jobs counter
-ray_vllm_total_jobs {len(job_manager.jobs)}
+ray_vllm_total_jobs {total_jobs}
+
+# HELP ray_vllm_queue_depth Current queue depth
+# TYPE ray_vllm_queue_depth gauge
+ray_vllm_queue_depth {len(job_manager.job_queue) if hasattr(job_manager, 'job_queue') else 0}
 
 # HELP ray_vllm_service_info Service information
 # TYPE ray_vllm_service_info gauge
 ray_vllm_service_info{{version="2.0.0",service="ray-data-vllm-batch-inference"}} 1
 """
+        return Response(metrics_data, media_type="text/plain")
     
-    return Response(metrics_data, media_type="text/plain")
+    # Use prometheus client if available
+    from prometheus_client import Gauge, Counter
+    
+    # Define metrics
+    active_jobs_gauge = Gauge('ray_vllm_active_jobs', 'Number of active batch jobs')
+    total_jobs_gauge = Gauge('ray_vllm_total_jobs', 'Total number of jobs')
+    queue_depth_gauge = Gauge('ray_vllm_queue_depth', 'Current queue depth')
+    
+    # Update metrics
+    active_jobs = len([j for j in job_manager.jobs.values() if j.status.value in ['queued', 'running']])
+    active_jobs_gauge.set(active_jobs)
+    total_jobs_gauge.set(len(job_manager.jobs))
+    queue_depth_gauge.set(len(job_manager.job_queue) if hasattr(job_manager, 'job_queue') else 0)
+    
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # OpenAI-compatible batch endpoints
 @app.post("/v1/batches", response_model=OpenAIBatchCreateResponse)
@@ -344,27 +364,231 @@ async def validate_batch_input(request: BatchValidationRequest):
 
 @app.post("/v1/batches/cost-estimate", response_model=BatchCostEstimate)
 async def estimate_batch_cost(request: OpenAIBatchCreateRequest):
-    """Estimate cost for batch processing"""
+        """Estimate cost for batch processing"""
+        try:
+            # Simple cost estimation (adjust rates as needed)
+            input_tokens_per_prompt = 50  # Average estimate
+            total_input_tokens = len(request.input) * input_tokens_per_prompt
+            max_output_tokens = len(request.input) * (request.max_tokens or 256)
+            
+            # Example cost calculation (adjust rates based on actual pricing)
+            input_cost_per_1k = 0.0001  # $0.10 per 1M input tokens
+            output_cost_per_1k = 0.0002  # $0.20 per 1M output tokens
+            
+            input_cost = (total_input_tokens / 1000) * input_cost_per_1k
+            output_cost = (max_output_tokens / 1000) * output_cost_per_1k
+            total_cost = input_cost + output_cost
+            
+            return BatchCostEstimate(
+                input_tokens=total_input_tokens,
+                max_output_tokens=max_output_tokens,
+                estimated_cost_usd=total_cost
+            )
+            
+        except Exception as e:
+            logger.error(f"Cost estimation failed: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+# SLA tracking endpoints
+@app.get("/v1/sla/summary")
+async def get_sla_summary():
+    """Get SLA summary for all jobs"""
     try:
-        # Simple cost estimation (adjust rates as needed)
-        input_tokens_per_prompt = 50  # Average estimate
-        total_input_tokens = len(request.input) * input_tokens_per_prompt
-        max_output_tokens = len(request.input) * (request.max_tokens or 256)
+        # Simple SLA summary without external dependency
+        sla_summary = {
+            "total_jobs": len(job_manager.jobs),
+            "target_hours": 24.0,
+            "alert_threshold_hours": 20.0,
+            "status_breakdown": {
+                "within_target": 0,
+                "at_risk": 0,
+                "breached": 0,
+                "completed": 0
+            }
+        }
         
-        # Example cost calculation (adjust rates based on actual pricing)
-        input_cost_per_1k = 0.0001  # $0.10 per 1M input tokens
-        output_cost_per_1k = 0.0002  # $0.20 per 1M output tokens
+        # Count SLA statuses from files
+        import os
+        import json
+        for job_id in job_manager.jobs.keys():
+            sla_file = f"/tmp/sla_{job_id}.json"
+            if os.path.exists(sla_file):
+                try:
+                    with open(sla_file, 'r') as f:
+                        sla_data = json.load(f)
+                    status = sla_data.get("sla_status", "within_target")
+                    if status in sla_summary["status_breakdown"]:
+                        sla_summary["status_breakdown"][status] += 1
+                except:
+                    pass
         
-        input_cost = (total_input_tokens / 1000) * input_cost_per_1k
-        output_cost = (max_output_tokens / 1000) * output_cost_per_1k
-        total_cost = input_cost + output_cost
-        
-        return BatchCostEstimate(
-            input_tokens=total_input_tokens,
-            max_output_tokens=max_output_tokens,
-            estimated_cost_usd=total_cost
-        )
+        return sla_summary
         
     except Exception as e:
-        logger.error(f"Cost estimation failed: {e}")
+        logger.error(f"SLA summary failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/v1/sla/{job_id}")
+async def get_job_sla(job_id: str):
+    """Get SLA status for specific job"""
+    try:
+        import os
+        import json
+        sla_file = f"/tmp/sla_{job_id}.json"
+        
+        if not os.path.exists(sla_file):
+            raise HTTPException(status_code=404, detail="SLA data not found")
+        
+        with open(sla_file, 'r') as f:
+            sla_data = json.load(f)
+        
+        return sla_data
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Job SLA retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# GPU simulation endpoints
+@app.get("/v1/gpu/status")
+async def get_gpu_status():
+    """Get GPU simulation status"""
+    try:
+        # Simple GPU status without external dependency
+        gpu_status = {
+            "total_gpus": 3,
+            "busy_gpus": 0,
+            "available_gpus": 3,
+            "preempted_gpus": 0,
+            "overall_utilization_percentage": 0.0,
+            "utilization_by_type": {
+                "dedicated": {
+                    "total": 1,
+                    "busy": 0,
+                    "available": 1,
+                    "utilization_percentage": 0.0
+                },
+                "spot": {
+                    "total": 2,
+                    "busy": 0,
+                    "available": 2,
+                    "utilization_percentage": 0.0
+                },
+                "cpu_fallback": {
+                    "total": 1,
+                    "busy": 0,
+                    "available": 1,
+                    "utilization_percentage": 0.0
+                }
+            },
+            "gpu_resources": [
+                {
+                    "gpu_id": "dedicated_0",
+                    "gpu_type": "dedicated",
+                    "status": "available",
+                    "memory_gb": 16.0,
+                    "compute_capability": 8.0,
+                    "cost_per_hour": 2.5,
+                    "current_job_id": None
+                },
+                {
+                    "gpu_id": "spot_0",
+                    "gpu_type": "spot",
+                    "status": "available",
+                    "memory_gb": 16.0,
+                    "compute_capability": 8.0,
+                    "cost_per_hour": 0.8,
+                    "preemption_probability": 0.1,
+                    "current_job_id": None
+                },
+                {
+                    "gpu_id": "spot_1",
+                    "gpu_type": "spot",
+                    "status": "available",
+                    "memory_gb": 16.0,
+                    "compute_capability": 8.0,
+                    "cost_per_hour": 0.8,
+                    "preemption_probability": 0.1,
+                    "current_job_id": None
+                }
+            ]
+        }
+        
+        # Count busy GPUs from job assignments
+        busy_gpus = 0
+        for job in job_manager.jobs.values():
+            if job.status.value == "running":
+                busy_gpus += 1
+        
+        gpu_status["busy_gpus"] = busy_gpus
+        gpu_status["available_gpus"] = gpu_status["total_gpus"] - busy_gpus
+        gpu_status["overall_utilization_percentage"] = (busy_gpus / gpu_status["total_gpus"] * 100) if gpu_status["total_gpus"] > 0 else 0
+        
+        return gpu_status
+        
+    except Exception as e:
+        logger.error(f"GPU status retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/v1/system/status")
+async def get_system_status():
+    """Get overall system status"""
+    try:
+        # Get job statistics
+        total_jobs = len(job_manager.jobs)
+        active_jobs = len([j for j in job_manager.jobs.values() if j.status.value in ['queued', 'running']])
+        queue_depth = len(job_manager.job_queue) if hasattr(job_manager, 'job_queue') else 0
+        
+        # Get SLA summary
+        sla_summary = {
+            "within_target": 0,
+            "at_risk": 0,
+            "breached": 0,
+            "completed": 0
+        }
+        
+        import os
+        import json
+        for job_id in job_manager.jobs.keys():
+            sla_file = f"/tmp/sla_{job_id}.json"
+            if os.path.exists(sla_file):
+                try:
+                    with open(sla_file, 'r') as f:
+                        sla_data = json.load(f)
+                    status = sla_data.get("sla_status", "within_target")
+                    if status in sla_summary:
+                        sla_summary[status] += 1
+                except:
+                    pass
+        
+        return {
+            "service": "ray-data-vllm-batch-inference",
+            "version": "2.0.0",
+            "status": "healthy",
+            "timestamp": time.time(),
+            "jobs": {
+                "total": total_jobs,
+                "active": active_jobs,
+                "queue_depth": queue_depth
+            },
+            "sla": {
+                "target_hours": 24.0,
+                "summary": sla_summary
+            },
+            "gpu": {
+                "total": 3,
+                "busy": active_jobs,
+                "available": 3 - active_jobs
+            },
+            "simplified_components": {
+                "queue": "deque-based",
+                "storage": "local_json",
+                "sla_tracking": "file_based",
+                "gpu_simulation": "mock_with_flags"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"System status retrieval failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

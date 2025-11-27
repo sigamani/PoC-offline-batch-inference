@@ -106,19 +106,18 @@ docker build -f Dockerfile.dev -t doubleword-technical_app:latest .
 ### 2. Run the Container with Qwen Model
 
 ```bash
+docker stop ray_vllm_container
+docker rm ray_vllm_container
 # Run the container with mapped ports
-docker run -d --name doubleword-container \
-  -p 8000:8000 \
-  -p 8265:8265 \
-  -v $(pwd):/app \
-  doubleword-technical_app:latest
+docker run -p 8000:8000 -e MODEL=Qwen/Qwen2.5-0.5B -e ENGINE=vllm --name ray_vllm_container -d ray_vllm_dev python -m uvicorn app.api.routes:app --host 0.0.0.0 --port 8000
+
 ```
 
 ### 3. Verify the Service is Running
 
 ```bash
 # Check container status
-docker ps | grep doubleword-container
+docker ps | grep ray_vllm_container
 
 # Check API health
 curl -s http://localhost:8000/health | jq .
