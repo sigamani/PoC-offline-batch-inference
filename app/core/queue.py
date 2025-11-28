@@ -8,8 +8,8 @@ from typing import Dict, Any, List
 class QueueMessage:
     message_id: str
     payload: Dict[str, Any]
-    timestamp: float = None
-    priority: int = 1
+    timestamp: float
+    priority: int
 
     def __post_init__(self):
         if self.timestamp is None:
@@ -23,8 +23,7 @@ class SimpleQueue:
 
     def enqueue(self, payload: Dict[str, Any], priority: int = 1) -> str:
         if len(self.queue) + len(self.priority_queue) >= self.max_depth:
-            return None
-        msg = QueueMessage(message_id=str(uuid.uuid4())[:8], payload=payload, priority=priority)
+            msg = QueueMessage(message_id=str(uuid.uuid4())[:8], payload=payload, priority=priority)
         if priority > 5:
             self.priority_queue.append(msg)
         else:

@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from enum import Enum
+from dataclasses import dataclass, field
+import threading
+import uuid
+logger = logging.getLogger(__name__)
 
 class JobStatus(str, Enum):
     QUEUED = "queued"
@@ -13,6 +17,65 @@ class JobStatus(str, Enum):
     FAILED = "failed"
     CANCELLING = "cancelling"
     CANCELLED = "cancelled"
+
+@dataclass
+class JobStore():
+    jobs: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def create(self, data: Dict[str, Any]) -> str:
+        job_id = str(uuid.uuid4()+time.time())[:12]  
+        job_data = {
+            "id": job_id,
+            "status": JobStatus.QUEUED,
+            "created_at": float(time.time()),
+            "model": data.get("model"),
+            "num_prompts": data.get("num_prompts"),
+            "input_file": data.get("input_file"),
+            "output_file": None,  # Will be set when completed
+            "error_file": None,   # Will be set if errors occur
+            "started_at": None,
+            "completed_at": None,
+            "processed_count": 0,
+            "error_count": 0
+        }
+
+        with self.lock:
+            self.jobs[job_id] = job_data
+        
+        return self.jobs[job_id]['id']
+
+    def update(self, job_id: str, data: Dict[str, Any]) -> None:
+        with self.lock:
+            if job_id in self.jobs:
+                self.jobs[job_id].update(data)
+                self.jobs[job_id]['updated_at'] = int(time.time())
+                if data.get("status") == JobStatus.COMPLETED:
+                    self.jobs[job_id]['completed_at'] = int(time.time())
+                if data.get("status") == JobStatus.RUNNING:
+                    self.jobs[job_id]['started_at'] = int(time.time())
+                if data.get("status") == JobStatus.FAILED:
+                    self.jobs[job_id]['completed_at'] = int(time.time())
+            else:
+                raise KeyError(f"Job ID {job_id} not found")
+                        
+            
+    def get(self, job_id: str) -> Dict[str, Any]:
+        with self.lock:
+            if job_id in self.jobs:
+                return self.jobs[job_id]
+            else:
+                raise KeyError(f"Job ID {job_id} not found")
+        
+
+    def list(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        with self.lock:
+            if status:
+                return [job for job in self.jobs.values() if job['status'] == status]
+            return list(self.jobs.values())
+    
+
+
 
 class BatchInferenceRequest(BaseModel):
     prompts: List[str] = Field(..., description="List of prompts to process")

@@ -3,6 +3,10 @@ import time
 import uuid
 import json
 import os
+from app.core.sla import SLAManager
+from app.utils.schemas import JobStore
+from app.core.priority import calculate_priority
+
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any
 
@@ -14,6 +18,9 @@ from app.core.processor import InferencePipeline
 logger = logging.getLogger(__name__)
 pipeline = InferencePipeline()
 executor = ThreadPoolExecutor(max_workers=4)
+
+sla_manager = SLAManager()
+job_store = JobStore()
 
 app = FastAPI(
     title="Ray Data vLLM Batch Inference",
@@ -107,31 +114,36 @@ async def generate_batch(request: BatchRequest):
 async def create_openai_batch(request: OpenAIBatchRequest):
     prompts = [item.get("prompt", "") for item in request.input]
     batch_id = str(uuid.uuid4())
+    created_at = float(time.time())
 
-    try:
-        results = await execute_batch_async(prompts)
-        save_batch(batch_id, request.model, results)
-    except Exception as e:
-        logger.error(f"OpenAI batch failed: {e}")
-        raise HTTPException(status_code=500, detail="OpenAI batch failed")
+    sla_manager.create_job(batch_id, len(prompts))
 
+    job_data = {"id": batch_id, "model": request.model, "status": "queued", "created_at": created_at, "num_prompts": len(prompts)}
+    job_store.create( batch_id, job_data)
+
+    priority = calculate_priority(batch_id, created_at, len(prompts))
+    logger.info(f"Enqueuing batch {batch_id} with priority {priority} and{len(prompts)} prompts")
     return OpenAIBatchResponse(
         id=batch_id,
-        created_at=int(time.time()),
-        status="completed"
+        created_at=created_at,
+        status="queued"
     )
 
 @app.get("/v1/batches/{batch_id}")
 async def get_openai_batch(batch_id: str):
-    batch = load_batch(batch_id)
-    return {
-        "id": batch["id"],
-        "object": "batch",
-        "created_at": batch["created_at"],
-        "completed_at": batch["created_at"],
-        "status": "completed",
-        "results_file": os.path.join(BATCH_DIR, f"batch_{batch_id}.json")
-    }
+    try:
+        job=job_store.get(batch_id)
+        return {
+            "id": job["id"],
+            "model": job.get("model", "unknown"),
+            "created_at": job.get("created_at", 0),
+            "completed_at": job.get("completed_at", 0),
+            "status": job.get("status", "unknown"),
+            "total_prompts": job.get("num_prompts", 0)
+        }
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
 
 @app.get("/v1/batches/{batch_id}/results")
 async def get_openai_batch_results(batch_id: str):
