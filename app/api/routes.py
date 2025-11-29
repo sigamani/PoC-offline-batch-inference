@@ -208,8 +208,20 @@ async def get_openai_batch(batch_id: str):
 
 @app.get("/v1/batches/{batch_id}/results")
 async def get_openai_batch_results(batch_id: str):
-    batch = load_batch(batch_id)
-    return {"object": "list", "data": batch["results"]}
+    """Get batch results from output file"""
+    output_file = os.path.join(BATCH_DIR, f"{batch_id}_output.jsonl")
+    
+    if not os.path.exists(output_file):
+        raise HTTPException(status_code=404, detail="Batch results not found")
+    
+    # Load results from JSONL file
+    results = []
+    with open(output_file, 'r') as f:
+        for line in f:
+            if line.strip():
+                results.append(json.loads(line))
+    
+    return {"object": "list", "data": results}
 
 
 if __name__ == "__main__":
