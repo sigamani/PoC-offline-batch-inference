@@ -1,164 +1,141 @@
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+sys.path.insert(0, project_root)
 import logging
-from typing import Any, Dict, List
 import time
-
+from typing import List, Dict, Any
+from pipeline.config import EnvironmentConfig, ModelConfig
+from pipeline.ray_utils import create_dataset
+from pipeline.inference import create_mock_result
 logger = logging.getLogger(__name__)
-
-try:
-    import ray
-    from ray.data import Dataset
-    RAY_AVAILABLE = True
-except ImportError:
-    RAY_AVAILABLE = False
-    
-    class MockDataset:
-        def __init__(self, items):
-            self.items = items
-        
-        def count(self):
-            return len(self.items)
-        
-        def take_all(self):
-            return self.items
-        
-        def map_batches(self, func):
-            return self
-    
-    class MockRay:
-        class data:
-            @staticmethod
-            def from_items(items):
-                return MockDataset(items)
-    
-    ray = MockRay()
-    Dataset = MockDataset
-
-
-def create_ray_dataset(prompts: List[str]):
-    """Create Ray dataset from list of prompts."""
-    if not RAY_AVAILABLE:
-        logger.warning("Ray not available, using mock dataset")
-    
-    return ray.data.from_items([{"prompt": prompt} for prompt in prompts])
-
-
-def preprocess_batch(batch: Dict[str, Any]) -> Dict[str, Any]:
-    """Preprocess batch data - identity function for now."""
-    return batch
-
-
-def postprocess_batch(batch: Dict[str, Any]) -> Dict[str, Any]:
-    """Postprocess batch results - extract generated text."""
-    return {"results": batch.get("generated_texts", [])}
 
 
 class RayBatchProcessor:
-    """Ray Data batch processor for LLM inference"""
-    
-    def __init__(self, vllm_runner=None):
-        self.vllm_runner = vllm_runner
-        self.ray_available = RAY_AVAILABLE
-    
-    def process_batch(self, prompts: List[str], batch_size: int = 32) -> List[Dict[str, Any]]:
-        """Process a batch of prompts using Ray Data"""
-        start_time = time.time()
+    def __init__(self, model_config: ModelConfig, env_config: EnvironmentConfig):
+        self.model_config = model_config
+        self.env_config = env_config
+        self.vllm_engine = None
         
+        if env_config.is_gpu_available and not env_config.is_dev:
+            # STAGE with GPU - use real vLLM
+            self._init_vllm_engine()
+            logger.info("STAGE: Using real vLLM engine")
+        else:
+            # DEV or no GPU - use mock
+            self.processor = None
+            logger.info("DEV: Using mock Ray Data processor")
+    
+    def _init_vllm_engine(self):
+        """Initialize real vLLM engine"""
         try:
-            # Create Ray dataset
-            ds = create_ray_dataset(prompts)
-            logger.info(f"Created dataset with {ds.count()} samples")
+            from vllm import LLM, SamplingParams
             
-            if self.vllm_runner and self.vllm_runner.is_available():
-                # Use vLLM for processing
-                results = self._process_with_vllm(prompts)
+            self.vllm_engine = LLM(
+                model=self.model_config.model_name,
+                max_model_len=self.model_config.max_model_len,
+                gpu_memory_utilization=0.85,
+                enforce_eager=True,
+                dtype="float16",
+                enable_chunked_prefill=True,
+                max_num_batched_tokens=2048,
+            )
+            
+            self.sampling_params = SamplingParams(
+                temperature=self.model_config.temperature,
+                max_tokens=self.model_config.max_tokens,
+            )
+            
+            logger.info(f"vLLM engine initialized with model: {self.model_config.model_name}")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize vLLM engine: {e}")
+            raise
+    
+    def process_batch(self, prompts: List[str]) -> List[Dict[str, Any]]:
+        start_time = time.time()
+        try:
+            if self.vllm_engine:
+                results = self._execute_vllm_batch(prompts)
             else:
-                # Use Ray Data map_batches (mock implementation)
-                results = self._process_with_ray(ds, batch_size)
-            
-            processing_time = time.time() - start_time
-            logger.info(f"Batch processing completed in {processing_time:.2f} seconds")
-            
+                results = self._execute_batch_processing(prompts)
+            self._log_completion(start_time)
             return results
-            
         except Exception as e:
             logger.error(f"Batch processing failed: {e}")
             return self._fallback_process(prompts)
     
-    def _process_with_vllm(self, prompts: List[str]) -> List[Dict[str, Any]]:
-        """Process prompts using vLLM runner"""
-        if not self.vllm_runner:
-            raise RuntimeError("vLLM runner not available")
+    def _execute_vllm_batch(self, prompts: List[str]) -> List[Dict[str, Any]]:
+        """Execute batch using real vLLM engine"""
+        logger.info(f"Processing {len(prompts)} prompts with vLLM")
         
-        return self.vllm_runner.generate_batch(prompts)
-    
-    def _process_with_ray(self, ds, batch_size: int) -> List[Dict[str, Any]]:
-        """Process dataset using Ray Data map_batches"""
-        def process_ray_batch(batch):
-            """Process a single Ray batch"""
-            prompts = [item["prompt"] for item in batch]
-            
-            if self.vllm_runner and self.vllm_runner.is_available():
-                return self._process_with_vllm(prompts)
-            else:
-                # Fallback processing
-                results = []
-                for prompt in prompts:
-                    response = f"Processed: {str(prompt)[:50]}..."
-                    results.append({
-                        "prompt": prompt,
-                        "response": response,
-                        "tokens": len(response.split()),
-                        "processing_time": 0.001
-                    })
-                return results
+        outputs = self.vllm_engine.generate(prompts, self.sampling_params)
         
-        # Apply map_batches
-        processed_ds = ds.map_batches(
-            process_ray_batch,
-            batch_size=batch_size
-        )
-        
-        # Collect results
-        all_results = []
-        batches = processed_ds.take_all()
-        
-        for batch in batches:
-            if isinstance(batch, list):
-                all_results.extend(batch)
-            else:
-                all_results.append(batch)
-        
-        return all_results
-    
-    def _fallback_process(self, prompts: List[str]) -> List[Dict[str, Any]]:
-        """Fallback processing when both Ray and vLLM are unavailable"""
         results = []
-        for prompt in prompts:
-            response = f"Fallback processed: {str(prompt)[:50]}..."
+        for i, output in enumerate(outputs):
             results.append({
-                "prompt": prompt,
-                "response": response,
-                "tokens": len(response.split()),
-                "processing_time": 0.001
+                "prompt": prompts[i],
+                "response": output.outputs[0].text,
+                "tokens": len(output.outputs[0].token_ids),
+                "processing_time": output.finish_time - output.start_time if hasattr(output, 'finish_time') else 0.001
             })
         
         return results
-
-
-if __name__ == "__main__":
-    # Test Ray batch processor
-    processor = RayBatchProcessor()
     
-    test_prompts = [
-        "Hello world",
-        "What is artificial intelligence?",
-        "Explain machine learning",
-        "Test prompt 4",
-        "Test prompt 5"
-    ]
+    def _execute_batch_processing(self, prompts: List[str]) -> List[Dict[str, Any]]:
+        """Execute batch using Ray Data with mock inference"""
+        ds = create_dataset(prompts)
+        logger.info(f"Created dataset with {ds.count()} samples")
+        return self._process_with_mock(ds)
     
-    results = processor.process_batch(test_prompts)
+    def _process_with_mock(self, ds) -> List[Dict[str, Any]]:
+        logger.info("Using Ray Data map_batches with mock inference")
+        def process_batch_with_mock(batch, is_dev):
+            results = []
+            # Handle Ray Data batch format - it's a dict with numpy arrays
+            if isinstance(batch, dict) and 'prompt' in batch:
+                prompts = batch['prompt']
+                # Handle numpy array or list of prompts
+                if hasattr(prompts, '__iter__') and not isinstance(prompts, str):
+                    for prompt in prompts:
+                        result = create_mock_result(str(prompt), is_dev)
+                        results.append(result.to_dict())
+                else:
+                    # Single prompt
+                    result = create_mock_result(str(prompts), is_dev)
+                    results.append(result.to_dict())
+            else:
+                # Fallback for other batch formats
+                for item in batch:
+                    if hasattr(item, 'get'):
+                        prompt = item.get('prompt', str(item))
+                    else:
+                        prompt = str(item)
+                    result = create_mock_result(prompt, is_dev)
+                    results.append(result.to_dict())
+            # Ray 2.5+ requires returning named dict field
+            return {"results": results}
+        
+        batch_fn = lambda batch: process_batch_with_mock(batch, self.env_config.is_dev)
+        processed_ds = ds.map_batches(batch_fn, batch_size=self.model_config.batch_size)
+        batches = processed_ds.take_all()
+        
+        # Collect results from batches
+        all_results = []
+        for batch in batches:
+            if isinstance(batch, dict) and 'results' in batch:
+                all_results.extend(batch['results'])
+            elif isinstance(batch, list):
+                all_results.extend(batch)
+            else:
+                all_results.append(batch)
+        return all_results
     
-    print(f"Processed {len(results)} prompts:")
-    for i, result in enumerate(results):
-        print(f"{i+1}. {result['prompt'][:30]}... -> {result['response'][:30]}...")
+    def _fallback_process(self, prompts: List[str]) -> List[Dict[str, Any]]:
+        results = [create_mock_result(p, self.env_config.is_dev) for p in prompts]
+        return [r.to_dict() for r in results]
+    
+    def _log_completion(self, start_time: float):
+        duration = time.time() - start_time
+        logger.info(f"Batch processing completed in {duration:.2f} seconds")

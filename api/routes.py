@@ -1,26 +1,33 @@
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-                
+# Add project root to path for both standalone and module execution
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+sys.path.insert(0, project_root)
+
 import logging
 import time
 import uuid
 import json
-import os
+
 from typing import List, Dict, Any
 
 from fastapi import FastAPI, HTTPException
-from api.models import BatchRequest, BatchResponse, OpenAIBatchRequest, OpenAIBatchResponse
+from api.models import BatchRequest, BatchResponse, OpenAIBatchRequest, OpenAIBatchResponse, priorityLevels
 
 logger = logging.getLogger(__name__)
 
-from engine.vllm_runner import InferencePipeline
-pipeline = InferencePipeline()
+from pipeline.config import EnvironmentConfig, ModelConfig
+from pipeline.ray_batch import RayBatchProcessor
+
+env_config = EnvironmentConfig.from_env()
+model_config = ModelConfig.default()
+pipeline = RayBatchProcessor(model_config, env_config)
 
 from concurrent.futures import ThreadPoolExecutor
 executor = ThreadPoolExecutor(max_workers=4)
 
-from api.queue import SimpleQueue
+from api.job_queue import SimpleQueue
 job_queue = SimpleQueue()
 
 
@@ -44,13 +51,30 @@ app = FastAPI(
 
 
 BATCH_DIR = "/tmp"
-
-def calculate_priority(created_at: float, num_prompts: int, deadline_hours: float = 24.0) -> int:
+   
+def calculate_priority(created_at: float, num_prompts: int, deadline_hours: float = 24.0) -> priorityLevels:
     """
     Calculate the priority of a task based on its creation time, number of prompts, and deadline.
-    This is a placeholder implementation that always returns a priority of 1.
+    
+    Priority levels:
+    - LOW: Normal priority
+    - HIGH: Urgent priority
+    
+    A job gets HIGH priority if:
+    - Less than 4 hours remaining until deadline, OR
+    - Large job (> 100 prompts) with less than 12 hours remaining
     """
-    return 1
+    import time
+    current_time = time.time()
+    deadline_time = created_at + (deadline_hours * 3600)
+    time_remaining = deadline_time - current_time
+    if time_remaining < 4 * 3600:
+        return priorityLevels.HIGH  
+    elif num_prompts > 100 and time_remaining < 12 * 3600:
+        return priorityLevels.HIGH
+    else:
+        return priorityLevels.LOW
+    
 
 async def execute_batch_async(prompts: List[str]) -> List[Dict[str, Any]]:
     loop = None
@@ -61,9 +85,9 @@ async def execute_batch_async(prompts: List[str]) -> List[Dict[str, Any]]:
         pass
 
     if loop:
-        return await loop.run_in_executor(executor, pipeline.execute_batch, prompts)
+        return await loop.run_in_executor(executor, pipeline.process_batch, prompts)
     else:
-        return pipeline.execute_batch(prompts)
+        return pipeline.process_batch(prompts)
 
 def save_batch(batch_id: str, model: str, results: List[Dict[str, Any]]):
     path = os.path.join(BATCH_DIR, f"batch_{batch_id}.json")
@@ -112,55 +136,57 @@ async def generate_batch(request: BatchRequest):
         throughput=len(request.prompts)/total_time if total_time > 0 else 0
     )
 
-@app.post("/v1/batches", response_model=OpenAIBatchResponse)
+app.post("/v1/batches", response_model=OpenAIBatchResponse)
 async def create_openai_batch(request: OpenAIBatchRequest):
-    prompts = [item.get("prompt", "") for item in request.input]
-    created_at = float(time.time())
-    batch_id = str(uuid.uuid4())[:12]  # Short ID for filename
-    
-    # Create job metadata file
-    job_data = {
-        "id": batch_id,
-        "model": request.model,
-        "status": "queued",
-        "created_at": created_at,
-        "num_prompts": len(prompts),
-        "input_file": f"{batch_id}_input.jsonl",
-        "output_file": f"{batch_id}_output.jsonl",
-        "error_file": f"{batch_id}_errors.jsonl"
-    }
-    
-    # Save job metadata
-    job_path = os.path.join(BATCH_DIR, f"job_{batch_id}.json")
-    with open(job_path, "w") as f:
-        json.dump(job_data, f, indent=2)
-    
-    # Save input prompts as JSONL
-    input_path = os.path.join(BATCH_DIR, f"{batch_id}_input.jsonl")
-    with open(input_path, "w") as f:
-        for prompt in prompts:
-            json.dump({"prompt": prompt}, f)
-            f.write("\n")
-    
-    priority = calculate_priority(created_at, len(prompts))
-    logger.info(f"Enqueuing batch {batch_id} with priority {priority} and {len(prompts)} prompts")
-    
-    # Enqueue job for processing
-    job_queue.enqueue({
-        "job_id": batch_id,
-        "input_file": input_path,
-        "output_file": os.path.join(BATCH_DIR, f"{batch_id}_output.jsonl"),
-        "model": request.model,
-        "max_tokens": request.max_tokens,
-        "temperature": request.temperature
-    })
-    
-    return OpenAIBatchResponse(
-        id=batch_id,
-        created_at=int(created_at),
-        status="queued"
-    )
-
+    try:
+        prompts = [item.get("prompt", "") for item in request.input]
+        created_at = float(time.time())
+        batch_id = str(uuid.uuid4())[:12]  # Short ID for filename
+        
+        # Create job metadata file
+        job_data = {
+            "id": batch_id,
+            "model": request.model,
+            "status": "queued",
+            "created_at": created_at,
+            "num_prompts": len(prompts),
+            "input_file": f"{batch_id}_input.jsonl",
+            "output_file": f"{batch_id}_output.jsonl",
+            "error_file": f"{batch_id}_errors.jsonl"
+        }
+        
+        # Save job metadata
+        job_path = os.path.join(BATCH_DIR, f"job_{batch_id}.json")
+        with open(job_path, "w") as f:
+            json.dump(job_data, f, indent=2)
+        
+        # Save input prompts as JSONL
+        input_path = os.path.join(BATCH_DIR, f"{batch_id}_input.jsonl")
+        with open(input_path, "w") as f:
+            for prompt in prompts:
+                json.dump({"prompt": prompt}, f)
+                f.write("\n")
+        
+        priority = calculate_priority(created_at, len(prompts))
+        logger.info(f"Enqueuing batch {batch_id} with priority {priority} and {len(prompts)} prompts")
+        
+        # Enqueue job for processing
+        job_queue.enqueue({
+            "job_id": batch_id,
+            "input_file": input_path,
+            "output_file": os.path.join(BATCH_DIR, f"{batch_id}_output.jsonl"),
+            "model": request.model,
+            "max_tokens": request.max_tokens,
+            "temperature": request.temperature
+        }, priority=priority)
+        
+        return OpenAIBatchResponse(
+            id=batch_id,
+            created_at=int(created_at),
+            status="queued"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to create batch")
 
 @app.get("/v1/batches/{batch_id}")
 async def get_openai_batch(batch_id: str):
@@ -182,20 +208,22 @@ async def get_openai_batch(batch_id: str):
 
 @app.get("/v1/batches/{batch_id}/results")
 async def get_openai_batch_results(batch_id: str):
-    """Get batch results from output file"""
-    output_file = os.path.join(BATCH_DIR, f"{batch_id}_output.jsonl")
-    
-    if not os.path.exists(output_file):
-        raise HTTPException(status_code=404, detail="Batch results not found")
-    
-    # Load results from JSONL file
-    results = []
-    with open(output_file, 'r') as f:
-        for line in f:
-            if line.strip():
-                results.append(json.loads(line))
-    
-    return {"object": "list", "data": results}
+    try:
+        output_file = os.path.join(BATCH_DIR, f"{batch_id}_output.jsonl")
+        
+        if not os.path.exists(output_file):
+            raise HTTPException(status_code=404, detail="Batch results not found")
+        
+        # Load results from JSONL file
+        results = []
+        with open(output_file, 'r') as f:
+            for line in f:
+                if line.strip():
+                    results.append(json.loads(line))
+        
+        return {"object": "list", "data": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to load batch results")
 
 
 if __name__ == "__main__":
@@ -203,10 +231,10 @@ if __name__ == "__main__":
     
     async def test_batch_workflow():
         """Test the complete batch workflow"""
-        print("🧪 Testing batch workflow...")
+        logger.info("Testing batch workflow...")
         
         # Test 1: Create a batch job
-        print("\n1. Creating batch job...")
+        logger.info("Creating batch job...")
         test_request = {
             "model": "Qwen/Qwen2.5-0.5B-Instruct",
             "input": [
@@ -227,46 +255,43 @@ if __name__ == "__main__":
             if response.status_code == 200:
                 batch_data = response.json()
                 batch_id = batch_data["id"]
-                print(f"✅ Batch created with ID: {batch_id}")
+                logger.info(f"Batch created with ID: {batch_id}")
                 
-                # Test 2: Check job status
-                print(f"\n2. Checking job status for {batch_id}...")
-                await asyncio.sleep(0.5)  # Give worker time to process
+               
+                logger.info(f"Checking job status for {batch_id}...")
+                await asyncio.sleep(0.5)  
                 
                 status_response = client.get(f"/v1/batches/{batch_id}")
                 if status_response.status_code == 200:
                     status_data = status_response.json()
-                    print(f"✅ Job status: {status_data['status']}")
+                    logger.info(f"Job status: {status_data['status']}")
                 else:
-                    print(f"❌ Status check failed: {status_response.status_code}")
+                    logger.error(f"Status check failed: {status_response.status_code}")
                 
-                # Test 3: Check if files were created
-                print(f"\n3. Checking files...")
+                logger.info("Checking files...")
                 import os
                 job_file = f"/tmp/job_{batch_id}.json"
                 input_file = f"/tmp/{batch_id}_input.jsonl"
                 
                 if os.path.exists(job_file):
-                    print("✅ Job metadata file created")
+                    logger.info("Job metadata file created")
                 else:
-                    print("❌ Job metadata file missing")
+                    logger.warning("Job metadata file missing")
                     
                 if os.path.exists(input_file):
-                    print("✅ Input file created")
+                    logger.info("Input file created")
                 else:
-                    print("❌ Input file missing")
+                    logger.warning("Input file missing")
                 
-                # Test 4: Check queue depth
-                print(f"\n4. Queue depth: {job_queue.get_depth()}")
+                logger.info(f"Queue depth: {job_queue.get_depth()}")
                 
             else:
-                print(f"❌ Batch creation failed: {response.status_code} - {response.text}")
+                logger.error(f"Batch creation failed: {response.status_code} - {response.text}")
                 
         except Exception as e:
-            print(f"❌ Test failed: {e}")
+            logger.error(f"Test failed: {e}")
             import traceback
             traceback.print_exc()
     
-    # Run the test
     asyncio.run(test_batch_workflow())
-    print("\n🏁 Tests completed!")
+    logger.info("Tests completed!")
