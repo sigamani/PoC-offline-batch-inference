@@ -1,7 +1,5 @@
 # Offline Batch Inference PoC (OpenAI-Style)
 
-### Ray Data + vLLM + FastAPI + In-Memory Queue
-
 ## Overview
 
 This Proof-of-Concept demonstrates an **OpenAI-style offline batch inference system** designed to validate core architectural patterns for request marshalling, job lifecycle management, and compute resource allocation. The system uses minimal dependencies while remaining aligned with industry best practices, allowing the API semantics, batching workflow, and scheduling logic to be validated without requiring actual GPU infrastructure or distributed systems.
@@ -15,11 +13,11 @@ The PoC uses:
 * **Docker + Docker Compose** for isolated, reproducible local deployment
 * **Mocked resource pools** simulating spot and dedicated GPU allocation
 
-Production-grade substitutes are outlined for each component.
+Substitutes are outlined for each component if one would want to bring this to production.
 
 ---
 <details>
-<summary><strong> 1. Research Summary </strong></summary>
+<summary><strong> 1. Research </strong></summary>
 
 <br>
 
@@ -73,7 +71,7 @@ This PoC aligns with these trends.
 ---
 
 <details>
-<summary><strong> 2. Architecture of This PoC </strong></summary>
+<summary><strong> 2. System Architecture </strong></summary>
 
 <br>
 
@@ -141,7 +139,7 @@ curl http://localhost:8000/v1/batches/{batch_id}
 ---
 
 <details>
-<summary><strong> 3. Component Choices and Rationale </strong></summary>
+<summary><strong> 3. Component Choices </strong></summary>
 
 <br>
 
@@ -202,11 +200,11 @@ gpu_pool = {
 ---
 
 <details>
-<summary><strong> 4. Scope Definition </strong></summary>
+<summary><strong> 4. PoC Scope Definition </strong></summary>
 
 <br>
  
-## 4.1 In Scope (for PoC)
+## 4.1 In Scope
 
 **Core API & Lifecycle:**
 * OpenAI-style batch job API (submit → status → results)
@@ -238,7 +236,7 @@ gpu_pool = {
 * Metrics hooks or stubs (latency, throughput)
 * Basic logging of scheduling decisions
 
-## 4.2 Out of Scope (for PoC)
+## 4.2 Out of Scope
 
 * Distributed multi-node Ray cluster
 * Real GPU scheduling, placement, or hardware management
@@ -261,7 +259,7 @@ gpu_pool = {
 ---
 
 <details>
-<summary><strong> 1. 5. How This PoC Aligns With Current Trends </strong></summary>
+<summary><strong> 5. Current Industry Trends </strong></summary>
 
 <br> 
 
@@ -285,7 +283,7 @@ This PoC mirrors the architecture patterns observed in modern repositories:
 ---
 
 <details>
-<summary><strong> 6. Proposed Production Path </strong></summary>
+<summary><strong> 6. Path to Production </strong></summary>
 
 <br>
 
@@ -350,7 +348,7 @@ repo/
 ---
 
 <details>
-<summary><strong> 8. Key Deliverables </strong></summary>
+<summary><strong> 8. Deliverables </strong></summary>
 
 <br>
 
@@ -376,15 +374,13 @@ The PoC does **not** validate:
 ---
 
 <details>
-<summary><strong> 9. Key References </strong></summary>
+<summary><strong> 9. References </strong></summary>
 
 <br>
 
 * GitHub repositories surveyed for offline/batch LLM inference (vLLM, TGI, TensorRT-LLM, custom pipelines)
 * Summary research output from Perplexity PDF
 * OpenAI Batch API documentation patterns
-
-## References
 
 - NVIDIA. “The Triton TensorRT-LLM Backend.” https://github.com/triton-inference-server/tensorrtllm_backend
 - NVIDIA. “Dynamic Batcher - NVIDIA Triton Inference Server.” https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/user_guide/batcher.html
@@ -420,4 +416,3 @@ The PoC does **not** validate:
 - alexrudall. “ruby-openai: OpenAI API + Ruby.” https://github.com/alexrudall/ruby-openai
 
 </details>
-
