@@ -1,1144 +1,359 @@
-# Ray Data + vLLM Batch Inference
+This Proof-of-Concept demonstrates an OpenAI-style offline batch inference system designed to validate core architectural patterns for request marshalling, job lifecycle management, and compute resource allocation. The system uses minimal dependencies while aligning with industry best practices, enabling validation of API semantics, batching workflows, and resource scheduling without requiring actual GPU infrastruc<img width="2400" height="1600" alt="Trends_in_engines,_servers,_frameworks,_and_patterns_for_offline_and_batch_LLM_inference_in_recent_public_GitHub_projects" src="https://github.com/user-attachments/assets/6649c5b4-eacb-405a-b577-66a9fc2fd03f" />
+ture or distributed systems.
+
+# Offline Batch Inference PoC (OpenAI-Style)
+
+### Using Ray Data + vLLM + FastAPI + In-Memory Queue
 
 ## Overview
 
-Build a production-ready offline batch inference server using Ray Data and vLLM that processes 1000+ requests within 24-hour SLA windows with proper authentication, monitoring, and observability.
+This Proof-of-Concept demonstrates an **OpenAI-style offline batch inference system** designed to validate core architectural patterns for request marshalling, job lifecycle management, and compute resource allocation. The system uses minimal dependencies while remaining aligned with industry best practices, allowing the API semantics, batching workflow, and scheduling logic to be validated without requiring actual GPU infrastructure or distributed systems.
+
+The PoC uses:
+
+* **Ray Data** for batch ingestion and parallel map-style execution
+* **vLLM** as the LLM execution engine
+* **FastAPI** for the control plane
+* **`collections.deque`** as an in-memory job queue
+* **Docker + Docker Compose** for isolated, reproducible local deployment
+* **Mocked resource pools** simulating spot and dedicated GPU allocation
+
+Production-grade substitutes are outlined for each component.
 
 ---
 
-## Architecture Overview
+# 1. Research Summary: Current Trends in Offline/Batch LLM Inference
 
-```
-┌─────────────────────────────┐
-│        Users / Clients      │
-│ (Bearer Token Auth)        │
-└─────────────┬──────────────┘
-              │
-              ▼
-┌─────────────────────────────┐
-│       Head Node (CPU)       │
-│                             │
-│  FastAPI Gateway            │
-│  - Rate Limiting            │
-│  - Job Queue Management      │
-│  - SLA & Metrics Tracker      │
-│  - Real-time Monitoring       │
-│                             │
-└─────────────┬──────────────┘
-              │
-              ▼
-┌───────────────────────────────┐
-│   Job Dispatcher / Worker   │
-│  - Queue Processing           │
-│  - Concurrency Control        │
-│  - Artifact Storage          │
-└─────────────┬──────────────┘
-              │
-              ▼
-┌───────────────────────────────┐
-│       GPU Worker Nodes         │
-│                               │
-│  Ray Workers                  │
-│  - vLLM Engine               │
-│  - Adaptive Batching          │
-│  - Memory Optimization        │
-│  - Model Sharding             │
-└─────────────┬─────────────────┘
-              │
-              ▼
-┌───────────────────────────────┐
-│   Batch Output Storage   │
-│  - SHA-based Artifacts      │
-│  - Version Control           │
-└─────────────────────────────┘
-```
+(derived from analysis of public GitHub repositories and industry examples)
+
+## 1.1 Engines
+
+Recent open-source repositories cluster around:
+
+* **vLLM** – high-throughput Python-native serving; common for PoCs and lightweight deployments
+* **TensorRT-LLM** – GPU-optimized, often used with Triton; preferred in production environments
+* **HuggingFace TGI** – standardized server with continuous batching & token limits
+* **llama.cpp** – CPU/edge-optimized; sometimes used for PoCs or offline evaluation
+
+## 1.2 Model Servers / Serving Layers
+
+Typical choices:
+
+* **Triton Inference Server** (TensorRT-LLM backend) for GPU batching, scheduling, inflight batching
+* **HuggingFace TGI** for text-generation-focused deployments
+* **vLLM's Python server** for simpler control-plane integration
+* **Custom FastAPI/gRPC control planes** when queueing, task lifecycle, or custom semantics are needed
+* 
+![Uploading Trends_in_engines,_servers,_frameworks,_and_patterns_for_offline_and_batch_LLM_inference_in_recent_public_GitHub_projects.png…]()
+
+## 1.3 Orchestration Patterns
+
+Two patterns dominate:
+
+* **Queue + Worker model** – FastAPI control plane + background workers performing batch inference
+* **Scheduler + Cluster runtime** – Ray, Kubernetes, or Slurm scheduling batch jobs over GPU pools
+
+## 1.4 Common Characteristics of Offline/Batch Inference Repos
+
+* Use of **map-style batch transforms** (Ray, Spark, TGI batch API, TensorRT-LLM batch scheduler)
+* OpenAI-style patterns around:
+  * upload file
+  * create batch job
+  * poll job status
+  * retrieve results
+* Dynamic batching or continuous batching where possible
+* Separation between **control plane** (HTTP API) and **execution layer** (Ray/vLLM/Triton)
+* PoCs avoid Redis, Celery, Kafka, etc.; they use local queues or in-memory runners
+
+This PoC aligns with these trends.
 
 ---
 
-## Key Features
-
-### **Authentication & Security**
-- **Rate Limiting**: Per-tier request limits (Free: 100/hr, Basic: 500/hr, Premium: 2000/hr, Enterprise: 10000/hr)
-- **Token Management**: Generation, validation, revocation, and blacklisting
-
-### **Batch Processing**
-- **Ray Data Integration**: Official `ray.data.llm` API with `vLLMEngineProcessorConfig`
-- **Adaptive Batching**: Dynamic batch size calculation based on available memory
-- **vLLM Optimization**: Chunked prefill, speculative decoding, KV cache optimization
-
-
-### **Data Management**
-- **SHA-based Artifacts**: Immutable data with content and SHA256 hashing
-- **Version Control**: Timestamped versions with audit trails
-
-### **Observability**
-- **Prometheus Metrics**: Throughput, tokens/sec, memory usage, error rates
-- **Grafana Dashboard**: Real-time monitoring and alerting
-- **Structured Logging**: JSON format for Loki integration
-- **Health Endpoints**: Service status and component health checks
-
----
-
-### **SLA Compliance**
-- **24-hour Window**: Standard for all tiers
-- **Burst Handling**: Queue-based load balancing
-- **Failure Recovery**: Automatic retry with exponential backoff
-
----
-
-## Quick Start Guide
-
-### Prerequisites
-- Docker installed on your system
-- Git for cloning the repository
-
-### 1. Build the Docker Image
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd doubleword-technical
-
-# Build the lightweight development image
-docker build -f Dockerfile.dev -t doubleword-technical_app:latest .
-```
-
-### 2. Run the Container with Qwen Model
-
-```bash
-docker stop ray_vllm_container
-docker rm ray_vllm_container
-# Run the container with mapped ports
-docker run -p 8000:8000 -e MODEL=Qwen/Qwen2.5-0.5B -e ENGINE=vllm --name ray_vllm_container -d ray_vllm_dev python -m uvicorn app.api.routes:app --host 0.0.0.0 --port 8000
+# 2. Architecture of This PoC
 
 ```
-
-### 3. Verify the Service is Running
-
-```bash
-# Check container status
-docker ps | grep ray_vllm_container
-
-# Check API health
-curl -s http://localhost:8000/health | jq .
-```
-
-Expected health response:
-```json
-{
-  "status": "healthy",
-  "service": "ray-data-vllm-authenticated",
-  "processor_initialized": false,
-  "config_loaded": true,
-  "version": "2.0.0"
-}
-```
-
-### 4. Send a Batch Job
-
-```bash
-# Send batch inference request
-curl -X POST "http://localhost:8000/generate_batch" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompts": [
-      "What is the capital of France?",
-      "Explain the concept of machine learning.",
-      "Write a short poem about technology.",
-      "What are the benefits of renewable energy?",
-      "Describe the process of photosynthesis."
-    ],
-    "max_tokens": 256,
-    "temperature": 0.7
-  }' | jq .
-```
-
-Expected response:
-```json
-{
-  "results": [
-    {
-      "text": "Processed: What is the capital of France?...",
-      "tokens_generated": 6,
-      "inference_time": 3.2
-    }
-  ],
-  "total_time": 9.6,
-  "total_prompts": 5,
-  "throughput": 0.52
-}
-```
-
-### 5. Monitor the System
-
-#### View Container Logs
-```bash
-# View real-time logs
-docker logs -f doubleword-container
-
-# View last 50 lines
-docker logs --tail 50 doubleword-container
-```
-
-#### Check System Metrics
-```bash
-# Get metrics endpoint
-curl -s http://localhost:8000/metrics | jq .
-
-# Check Ray Dashboard (if accessible)
-curl -s http://localhost:8265 | head -20
-```
-
-#### Monitor Resource Usage
-```bash
-# Check container resource usage
-docker stats doubleword-container
-
-# Check system resources
-top -p $(docker inspect -f '{{.State.Pid}}' doubleword-container)
-```
-
-### 6. View Results
-
-#### Check Batch Job Status
-```bash
-# Submit an async job (alternative to direct batch)
-curl -X POST "http://localhost:8000/start" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input_path": "/tmp/input.json",
-    "output_path": "/tmp/output.json",
-    "num_samples": 100,
-    "batch_size": 32,
-    "concurrency": 2
-  }' | jq .
-
-# Monitor job status (replace JOB_ID with actual ID)
-curl -s "http://localhost:8000/jobs/JOB_ID" | jq .
-```
-
-#### View Output Files
-```bash
-# Access container shell
-docker exec -it doubleword-container bash
-
-# View output directory
-ls -la /tmp/
-
-# View specific output file
-cat /tmp/output.json | jq .
-```
-
-### 7. Cleanup
-
-```bash
-# Stop and remove container
-docker stop doubleword-container
-docker rm doubleword-container
-
-# Remove Docker image (optional)
-docker rmi doubleword-technical_app:latest
+             ┌─────────────────────────────┐
+             │          FastAPI            │
+             │  (HTTP control plane)       │
+             │  • submit batch job         │
+             │  • poll job status          │
+             │  • retrieve results         │
+             │  • SLA metadata tracking    │
+             └──────────────┬──────────────┘
+                            │
+                     enqueue/dequeue
+                            │
+                  ┌─────────▼─────────┐
+                  │   In-Memory Queue │
+                  │   (collections.deque)
+                  │  + job metadata    │
+                  └─────────┬─────────┘
+                            │
+                background worker thread
+                  (with mocked scheduler)
+                            │
+                ┌───────────▼───────────┐
+                │   Mocked GPU Pool     │
+                │  • spot instances     │
+                │  • dedicated instances│
+                │  • capacity tracking  │
+                └───────────┬───────────┘
+                            │
+                ┌───────────▼───────────┐
+                │        Ray Data        │
+                │   map_batches pipeline │
+                └───────────┬───────────┘
+                            │
+                   calls into vLLM
+                            │
+                ┌───────────▼──────────┐
+                │      vLLM Engine      │
+                │   (Qwen2.5 0.5B/7B)   │
+                └────────────────────────┘
 ```
 
 ---
 
-## Troubleshooting
+# 3. Component Choices and Rationale
 
-### Common Issues
+## 3.1 Ray Data
 
-#### Container Won't Start
-```bash
-# Check Docker daemon
-docker version
+* Native map-style **batch transformations** match the OpenAI offline inference model
+* Built-in backpressure, parallelism, and scaling semantics
+* Lightweight setup for a PoC without needing a Ray cluster
 
-# Check for port conflicts
-netstat -tulpn | grep :8000
-```
+## 3.2 vLLM
 
-#### API Not Responding
-```bash
-# Check if container is running
-docker ps
+* High throughput per GPU/CPU
+* Simple Python API; minimal server overhead
+* Aligns with current industry trends in PoCs and production prototypes
 
-# Check container logs for errors
-docker logs doubleword-container
+## 3.3 FastAPI
 
-# Restart container
-docker restart doubleword-container
-```
+* Thin control plane for:
+  * job submission with SLA metadata
+  * queue inspection
+  * job results retrieval
+* Easiest to test and iterate on
+* Used in many open-source LLM servers for HTTP orchestration
 
-#### Memory Issues
-```bash
-# Check available memory
-free -h
+## 3.4 `collections.deque` (Queue)
 
-# Run with increased memory limits
-docker run -d --name doubleword-container \
-  --memory=8g \
-  -p 8000:8000 \
-  -p 8265:8265 \
-  doubleword-technical_app:latest
-```
+* Zero external dependencies
+* Allows rapid prototyping and unit testing of queue semantics
+* Mirrors queue/worker pattern used in production without requiring Redis/Celery
 
-#### Performance Monitoring
-```bash
-# Monitor Ray performance
-docker exec doubleword-container ray status
+**Production substitute:** Redis Streams, Redis Queue, or Celery with a broker.
 
-# Check GPU usage (if using GPU)
-docker exec doubleword-container nvidia-smi
+## 3.5 Mocked GPU Pool Scheduler
 
-# Monitor CPU and memory
-docker stats --no-stream doubleword-container
-```
-
-### Debug Mode
-
-```bash
-# Run with additional debugging
-docker run -d --name doubleword-container \
-  -e RAY_BACKEND_LOG_LEVEL=debug \
-  -p 8000:8000 \
-  -p 8265:8265 \
-  doubleword-technical_app:latest
-
-# Access shell for debugging
-docker exec -it doubleword-container bash
-```
-
----
-
-## OpenAI-Compatible Batch Interface
-
-The server now provides an OpenAI-compatible batch processing interface with additional features for production use.
-
-### 1. Create a Batch Job
-
-#### Using JSON Input
-
-```json
-{
-  "model": "Qwen/Qwen2.5-0.5B-Instruct",
-  "input": [
-    {"prompt": "What is AI?"},
-    {"prompt": "Explain ML basics"},
-    {"prompt": "How do neural networks work?"}
-  ],
-  "max_tokens": 100,
-  "temperature": 0.7
-}
-```
-
-#### Using Python Client
+* Simulates resource allocation decisions without actual GPU hardware
+* Tests request marshalling logic for spot vs dedicated instance assignment
+* Includes capacity tracking and fallback behavior
+* Example state representation:
 
 ```python
-import openai_batch_client as batch
-
-# Create batch job
-response = batch.create_batch(
-    model="Qwen/Qwen2.5-0.5B-Instruct",
-    input=[
-        {"prompt": "What is AI?"},
-        {"prompt": "Explain ML basics"},
-        {"prompt": "How do neural networks work?"}
-    ],
-    max_tokens=100,
-    temperature=0.7
-)
-
-print(f"Job ID: {response['id']}")
-print(f"Status: {response['status']}")
+gpu_pool = {
+    "spot": {"capacity": 2, "available": 1},
+    "dedicated": {"capacity": 1, "available": 1},
+}
 ```
 
-#### Using Direct API Call
+**Production substitute:** Real GPU scheduling with Ray autoscaler, Kubernetes, or cloud provider APIs.
+
+## 3.6 Docker + Docker Compose
+
+* Provides reproducibility for independent LLM engine, Ray runtime, and API
+* Keeps the PoC self-contained and portable
+
+**Production substitute:** Kubernetes, KubeRay, Ray Jobs API, or ECS.
+
+---
+
+# 4. Scope Definition
+
+## 4.1 In Scope (for PoC)
+
+**Core API & Lifecycle:**
+* OpenAI-style batch job API (submit → status → results)
+* FastAPI control plane
+* Single-node Ray Data pipeline
+* vLLM running Qwen2.5-0.5B or Qwen2.5-7B
+* In-memory queue backed by `deque`
+* Simple job lifecycle: queued → running → completed/failed
+
+**SLA Management (Mocked):**
+* Job metadata includes `submitted_at` and `deadline_at` (submitted_at + 24h)
+* Worker logic includes SLA-aware scheduling stubs
+* Logging/metrics expose SLA compliance markers
+* No real-time SLA enforcement or violation remediation
+
+**Compute Pool Scheduling (Mocked):**
+* Mock scheduler assigns jobs to spot or dedicated instance pools
+* Simulated resource pool state with capacity tracking
+* Fallback logic when spot capacity is unavailable
+* Worker logs which pool was assigned to each job
+
+**Infrastructure:**
+* Docker-based reproducible environment
+* Full runnable setup with Docker Compose
+* No external service dependencies
+* Clear repository layout and documentation
+
+**Observability:**
+* Metrics hooks or stubs (latency, throughput)
+* Basic logging of scheduling decisions
+
+## 4.2 Out of Scope (for PoC)
+
+* Distributed multi-node Ray cluster
+* Real GPU scheduling, placement, or hardware management
+* Autoscaling based on load or spot availability
+* Redis/Celery-based production queues
+* Kafka or other message brokers
+* Triton Inference Server integration
+* TensorRT-LLM backends
+* GPU multi-tenant provisioning
+* Advanced scheduling (priority tiers, token-level batching, inflight batching)
+* Real SLA violation handling or remediation workflows
+* Enterprise authentication, authorization, audit logging
+* Cost optimization strategies
+* Multi-region deployment
+* Real object storage integration (S3/GCS)
+* Priority queues or tiered service plans
+
+---
+
+# 5. How This PoC Aligns With State-of-the-Art
+
+This PoC mirrors the architecture patterns observed in modern repositories:
+
+| Trend (GitHub)                          | PoC Alignment                          |
+| --------------------------------------- | -------------------------------------- |
+| FastAPI control plane                   | Yes                                    |
+| Queue + Worker batching model           | Yes (in-memory queue)                  |
+| vLLM or TGI as engine                   | vLLM                                   |
+| Ray/TensorRT-LLM/Triton for production  | Ray Data in PoC, Triton noted for prod |
+| OpenAI-style job lifecycle              | Yes                                    |
+| SLA-aware job metadata                  | Yes (mocked)                           |
+| Resource pool scheduling                | Yes (mocked spot/dedicated)            |
+| Minimal PoC infra (no Redis/Kafka)      | Yes                                    |
+| Dockerized dev environment              | Yes                                    |
+| Replaceable components for staging/prod | Yes                                    |
+
+---
+
+# 6. Production Path (Recommended)
+
+If taken beyond PoC:
+
+| PoC Component              | Production Upgrade                      |
+| -------------------------- | --------------------------------------- |
+| `deque` queue              | Redis Streams or Celery                 |
+| Ray Data (local)           | Ray cluster, Ray Jobs, autoscaling      |
+| vLLM Python runtime        | vLLM server or Triton backend           |
+| Mocked GPU pool            | Real GPU scheduler with cloud provider  |
+| Mocked SLA tracking        | Real-time SLA monitoring & enforcement  |
+| FastAPI                    | gRPC or API Gateway front door          |
+| Docker Compose             | Kubernetes or KubeRay                   |
+| Local storage              | S3/GCS object storage                   |
+| In-memory job metadata     | Database (PostgreSQL/DynamoDB)          |
+
+---
+
+# 7. Repository Structure (Suggested)
+
+```
+repo/
+│
+├── api/
+│   ├── main.py              # FastAPI endpoints
+│   ├── models.py            # Pydantic models, job metadata
+│   ├── queue.py             # In-memory queue + worker
+│   └── scheduler.py         # Mocked GPU pool scheduler
+│
+├── engine/
+│   ├── vllm_runner.py       # vLLM interface
+│   └── model_config.yaml    # Model configuration
+│
+├── pipeline/
+│   └── ray_batch.py         # Ray Data batch pipeline
+│
+├── docker/
+│   ├── Dockerfile.api       # API service container
+│   ├── Dockerfile.vllm      # vLLM engine container
+│   └── docker-compose.yml   # Complete environment setup
+│
+├── examples/
+│   ├── sample_batch.jsonl   # Example batch input
+│   └── client_submit.ipynb  # Example client usage
+│
+├── tests/
+│   ├── test_api.py
+│   ├── test_scheduler.py
+│   └── test_pipeline.py
+│
+└── README.md
+```
+
+---
+
+# 8. Key Deliverables
+
+This PoC validates:
+
+1. **Request marshalling patterns** - How batch jobs flow from API to execution
+2. **Resource allocation logic** - Mocked scheduling between spot and dedicated pools
+3. **SLA-aware job metadata** - Tracking deadlines and compliance markers
+4. **OpenAI API compatibility** - Standard batch inference interface
+5. **Component integration** - FastAPI + Ray Data + vLLM working together
+6. **Deployment simplicity** - Single Docker Compose command to run
+
+The PoC does **not** validate:
+
+* Real GPU performance characteristics
+* Production-scale throughput
+* Cost optimization strategies
+* Enterprise security requirements
+* Multi-tenant isolation
+
+---
+
+# 9. Key References
+
+* GitHub repositories surveyed for offline/batch LLM inference (vLLM, TGI, TensorRT-LLM, custom pipelines)
+* Summary research output from Perplexity PDF
+* OpenAI Batch API documentation patterns
+
+---
+
+## Getting Started
 
 ```bash
-curl -X POST "http://localhost:8000/v1/batches" \
+# Clone repository
+git clone <repo-url>
+cd <repo-name>
+
+# Start all services
+docker-compose up
+
+# Submit a batch job (example)
+curl -X POST http://localhost:8000/v1/batches \
   -H "Content-Type: application/json" \
-  -d '{
-    "model": "Qwen/Qwen2.5-0.5B-Instruct",
-    "input": [
-      {"prompt": "What is AI?"},
-      {"prompt": "Explain ML basics"},
-      {"prompt": "How do neural networks work?"}
-    ],
-    "max_tokens": 100,
-    "temperature": 0.7
-  }' | jq .
-```
+  -d @examples/sample_batch.jsonl
 
-### 2. Check Job Status
-
-#### Using Python Client
-
-```python
 # Check job status
-job_id = response["id"]
-status = batch.retrieve_batch(job_id)
-print(f"Status: {status['status']}")
-print(f"Created: {status['created_at']}")
-print(f"Completed: {status.get('completed_at')}")
-```
-
-#### Using Direct API Call
-
-```bash
-# Get job status
-curl -s "http://localhost:8000/v1/batches/JOB_ID" | jq .
-
-# Poll for completion
-while true; do
-  status=$(curl -s "http://localhost:8000/v1/batches/JOB_ID" | jq -r '.status')
-  echo "Status: $status"
-  
-  if [[ "$status" == "completed" || "$status" == "failed" ]]; then
-    break
-  fi
-  
-  sleep 5
-done
-```
-
-### 3. Retrieve Results
-
-#### Using Python Client
-
-```python
-# Wait for completion and get results
-final_status = batch.BatchClient().wait_for_completion(job_id)
-
-if final_status["status"] == "completed":
-    results = batch.get_batch_results(job_id)
-    
-    for item in results:
-        print(f"Input: {item['input']['prompt']}")
-        print(f"Output: {item['output_text']}")
-        print(f"Tokens: {item['tokens_generated']}")
-        print("---")
-```
-
-#### Using Direct API Call
-
-```bash
-# Get results
-curl -s "http://localhost:8000/v1/batches/JOB_ID/results" | jq '.data[]'
-
-# Format results nicely
-curl -s "http://localhost:8000/v1/batches/JOB_ID/results" | \
-  jq -r '.data[] | "Input: \(.input.prompt)\nOutput: \(.output_text)\nTokens: \(.tokens_generated)\n---"'
-```
-
-### 4. Optional Features
-
-#### Batch Size Validation
-
-```python
-# Validate input before submission
-validation = batch.BatchClient().validate_input({
-    "model": "Qwen/Qwen2.5-0.5B-Instruct",
-    "input": [
-        {"prompt": "What is AI?"},
-        {"prompt": "Explain ML basics"}
-    ],
-    "max_tokens": 100
-})
-
-if validation['is_valid']:
-    print("Input is valid")
-else:
-    print(f"Errors: {validation['errors']}")
-    print(f"Warnings: {validation['warnings']}")
-```
-
-#### Cost Estimation
-
-```python
-# Estimate cost before submission
-cost_estimate = batch.BatchClient().estimate_cost(
-    model="Qwen/Qwen2.5-0.5B-Instruct",
-    input=[
-        {"prompt": "What is AI?"},
-        {"prompt": "Explain ML basics"},
-        {"prompt": "How do neural networks work?"}
-    ],
-    max_tokens=100
-)
-
-print(f"Estimated cost: ${cost_estimate['estimated_cost_usd']:.6f}")
-print(f"Input tokens: {cost_estimate['input_tokens']}")
-print(f"Max output tokens: {cost_estimate['max_output_tokens']}")
-```
-
-#### Retry & Failure Handling
-
-The system automatically implements:
-- **Max 3 retry attempts** per failed batch
-- **Exponential backoff** (1s, 2s, 4s delays)
-- **Partial success handling** - failed batches don't stop processing
-- **Error tracking** - detailed error information in output
-
-#### Input Validation Features
-
-```bash
-# Validate JSON structure
-curl -X POST "http://localhost:8000/v1/batches/validate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "json_data": {
-      "model": "Qwen/Qwen2.5-0.5B-Instruct",
-      "input": [
-        {"prompt": "What is AI?"},
-        {"prompt": "Explain ML basics"}
-      ]
-    },
-    "max_batch_size": 1000
-  }' | jq .
-```
-
-#### Result Mapping with Indices
-
-For tracking input-output mapping:
-
-```python
-# Use indexed input format
-from app.models.schemas import BatchInputWithIndex
-
-indexed_input = [
-    BatchInputWithIndex(index=0, prompt="What is AI?"),
-    BatchInputWithIndex(index=1, prompt="Explain ML basics"),
-    BatchInputWithIndex(index=2, prompt="How do neural networks work?")
-]
-```
-
-### 5. Production Considerations
-
-#### Batch Size Limits
-- **Maximum batch size**: 1000 items per request
-- **Automatic truncation**: Excess items are automatically truncated
-- **Recommended size**: 100-500 items for optimal performance
-
-#### Streaming Output
-- **Batch jobs**: No streaming support (asynchronous processing)
-- **Real-time API**: Use `/generate_batch` endpoint for streaming
-
-#### Token Cost Management
-- **Pre-calculation**: Use cost estimation endpoint
-- **Budget tracking**: Monitor cumulative costs
-- **Token limits**: Respect max_tokens per request
-
-#### Error Handling Best Practices
-
-```python
-# Robust batch processing
-try:
-    # Create batch
-    response = batch.create_batch(model, input_data, max_tokens, temperature)
-    job_id = response["id"]
-    
-    # Wait with timeout
-    final_status = batch.BatchClient().wait_for_completion(
-        job_id, 
-        poll_interval=5.0, 
-        timeout=3600.0  # 1 hour
-    )
-    
-    if final_status["status"] == "completed":
-        results = batch.get_batch_results(job_id)
-        # Process results with error handling
-        for item in results:
-            try:
-                # Process successful result
-                print(item["output_text"])
-            except Exception as e:
-                print(f"Error processing result: {e}")
-    
-    elif final_status["status"] == "failed":
-        print(f"Batch failed: {final_status}")
-        
-except TimeoutError:
-    print("Batch processing timed out")
-except Exception as e:
-    print(f"Unexpected error: {e}")
-```
-
-### 6. Advanced Usage Examples
-
-#### Batch Processing with Retry Configuration
-
-```python
-from app.models.schemas import BatchRetryConfig, OpenAIBatchCreateRequestWithIndex
-
-retry_config = BatchRetryConfig(
-    max_retries=5,
-    retry_delay=2.0,
-    backoff_factor=1.5
-)
-
-request = OpenAIBatchCreateRequestWithIndex(
-    model="Qwen/Qwen2.5-0.5B-Instruct",
-    input=indexed_input,
-    max_tokens=256,
-    temperature=0.7,
-    retry_config=retry_config,
-    validate_input=True
-)
-```
-
-#### Monitoring Multiple Jobs
-
-```python
-import concurrent.futures
-import time
-
-def monitor_job(job_id):
-    client = batch.BatchClient()
-    return client.wait_for_completion(job_id, poll_interval=2.0)
-
-# Monitor multiple jobs concurrently
-job_ids = ["job1", "job2", "job3"]
-with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-    futures = {executor.submit(monitor_job, jid): jid for jid in job_ids}
-    
-    for future in concurrent.futures.as_completed(futures, timeout=3600):
-        job_id = futures[future]
-        try:
-            result = future.result()
-            print(f"Job {job_id} completed: {result['status']}")
-        except Exception as e:
-            print(f"Job {job_id} failed: {e}")
+curl http://localhost:8000/v1/batches/{batch_id}
 ```
 
 ---
 
-## Testing
-
-This section provides comprehensive testing instructions for validating the OpenAI-compatible batch interface functionality.
-
-### Prerequisites for Testing
-
-```bash
-# Ensure container is running
-docker ps | grep doubleword-container
-
-# Install required Python packages for testing
-pip install requests jq
-
-# Set environment variables
-export BATCH_API_URL="http://localhost:8000"
-export TEST_OUTPUT_DIR="/tmp/test_results"
-mkdir -p $TEST_OUTPUT_DIR
-```
-
-### 1. Test Basic API Connectivity
-
-```bash
-# Test health endpoint
-curl -s "$BATCH_API_URL/health" | jq .
-
-# Test OpenAI-compatible endpoint exists
-curl -s "$BATCH_API_URL/v1/batches" | head -20
-
-# Expected: Should return method not allowed (405) confirming endpoint exists
-```
-
-### 2. Test Batch Job Creation
-
-```bash
-# Create test batch job
-BATCH_RESPONSE=$(curl -s -X POST "$BATCH_API_URL/v1/batches" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "Qwen/Qwen2.5-0.5B-Instruct",
-    "input": [
-      {"prompt": "What is the capital of France?"},
-      {"prompt": "Explain machine learning in one sentence"},
-      {"prompt": "Write a haiku about technology"}
-    ],
-    "max_tokens": 50,
-    "temperature": 0.7
-  }')
-
-echo "Batch Creation Response:"
-echo "$BATCH_RESPONSE" | jq .
-
-# Extract job ID
-JOB_ID=$(echo "$BATCH_RESPONSE" | jq -r '.id')
-echo "Job ID: $JOB_ID"
-```
-
-### 3. Test Job Status Retrieval
-
-```bash
-# Wait a moment then check status
-sleep 5
-
-# Retrieve job status
-STATUS_RESPONSE=$(curl -s "$BATCH_API_URL/v1/batches/$JOB_ID")
-echo "Job Status:"
-echo "$STATUS_RESPONSE" | jq .
-
-# Check status field
-STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
-echo "Current Status: $STATUS"
-```
-
-### 4. Test Job Completion Polling
-
-```bash
-# Poll for completion with timeout
-POLL_TIMEOUT=300  # 5 minutes
-POLL_INTERVAL=10
-ELAPSED=0
-
-echo "Polling for job completion..."
-while [ $ELAPSED -lt $POLL_TIMEOUT ]; do
-    STATUS_RESPONSE=$(curl -s "$BATCH_API_URL/v1/batches/$JOB_ID")
-    STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
-    
-    echo "[$(date +%H:%M:%S)] Status: $STATUS"
-    
-    if [[ "$STATUS" == "completed" || "$STATUS" == "failed" ]]; then
-        echo "Job finished with status: $STATUS"
-        break
-    fi
-    
-    sleep $POLL_INTERVAL
-    ELAPSED=$((ELAPSED + POLL_INTERVAL))
-done
-
-if [ $ELAPSED -ge $POLL_TIMEOUT ]; then
-    echo "Polling timed out after $POLL_TIMEOUT seconds"
-    exit 1
-fi
-```
-
-### 5. Test Results Retrieval
-
-```bash
-# Get results if job completed
-if [[ "$STATUS" == "completed" ]]; then
-    RESULTS_RESPONSE=$(curl -s "$BATCH_API_URL/v1/batches/$JOB_ID/results")
-    
-    echo "Results Response:"
-    echo "$RESULTS_RESPONSE" | jq .
-    
-    # Save results to file
-    echo "$RESULTS_RESPONSE" | jq . > "$TEST_OUTPUT_DIR/test_results_$JOB_ID.json"
-    echo "Results saved to: $TEST_OUTPUT_DIR/test_results_$JOB_ID.json"
-    
-    # Extract and display individual results
-    echo ""
-    echo "Individual Results:"
-    echo "$RESULTS_RESPONSE" | jq -r '.data[] | "Input: \(.input.prompt)\nOutput: \(.output_text)\nTokens: \(.tokens_generated)\n---"'
-else
-    echo "Job did not complete successfully. Status: $STATUS"
-fi
-```
-
-### 6. Test Input Validation
-
-```bash
-# Test valid input
-VALID_RESPONSE=$(curl -s -X POST "$BATCH_API_URL/v1/batches/validate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "json_data": {
-      "model": "Qwen/Qwen2.5-0.5B-Instruct",
-      "input": [
-        {"prompt": "Test prompt 1"},
-        {"prompt": "Test prompt 2"}
-      ],
-      "max_tokens": 50
-    },
-    "max_batch_size": 1000
-  }')
-
-echo "Valid Input Test:"
-echo "$VALID_RESPONSE" | jq .
-
-# Test invalid input
-INVALID_RESPONSE=$(curl -s -X POST "$BATCH_API_URL/v1/batches/validate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "json_data": {
-      "model": "Qwen/Qwen2.5-0.5B-Instruct",
-      "input": [
-        {"wrong_field": "This should fail"},
-        {"prompt": "This one is ok"}
-      ]
-    },
-    "max_batch_size": 1000
-  }')
-
-echo "Invalid Input Test:"
-echo "$INVALID_RESPONSE" | jq .
-```
-
-### 7. Test Cost Estimation
-
-```bash
-# Test cost estimation
-COST_RESPONSE=$(curl -s -X POST "$BATCH_API_URL/v1/batches/cost-estimate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "Qwen/Qwen2.5-0.5B-Instruct",
-    "input": [
-      {"prompt": "What is AI?"},
-      {"prompt": "Explain machine learning"},
-      {"prompt": "How do neural networks work?"},
-      {"prompt": "Write a short poem"},
-      {"prompt": "What is the meaning of life?"}
-    ],
-    "max_tokens": 100
-  }')
-
-echo "Cost Estimation:"
-echo "$COST_RESPONSE" | jq .
-
-# Extract cost information
-ESTIMATED_COST=$(echo "$COST_RESPONSE" | jq -r '.estimated_cost_usd')
-INPUT_TOKENS=$(echo "$COST_RESPONSE" | jq -r '.input_tokens')
-OUTPUT_TOKENS=$(echo "$COST_RESPONSE" | jq -r '.max_output_tokens')
-
-echo "Estimated Cost: $$ESTIMATED_COST"
-echo "Input Tokens: $INPUT_TOKENS"
-echo "Max Output Tokens: $OUTPUT_TOKENS"
-```
-
-### 8. Test Batch Size Limits
-
-```bash
-# Test batch size within limits
-NORMAL_BATCH=$(curl -s -X POST "$BATCH_API_URL/v1/batches/validate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "json_data": {
-      "input": []
-    },
-    "max_batch_size": 1000
-  }')
-
-# Add 1000 items to input
-ITEMS=""
-for i in {1..1000}; do
-    ITEMS+=$(printf '{"prompt": "Test item %d"},' $i)
-done
-ITEMS=${ITEMS%?}  # Remove trailing comma
-
-LARGE_BATCH=$(curl -s -X POST "$BATCH_API_URL/v1/batches/validate" \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"json_data\": {
-      \"input\": [$ITEMS]
-    },
-    \"max_batch_size\": 1000
-  }")
-
-echo "Normal Batch Validation:"
-echo "$NORMAL_BATCH" | jq '.is_valid, .estimated_items'
-
-echo "Large Batch Validation:"
-echo "$LARGE_BATCH" | jq '.is_valid, .estimated_items, .warnings'
-```
-
-### 9. Test Python Client Library
-
-```bash
-# Test the Python client
-cat > /tmp/test_client.py << 'EOF'
-#!/usr/bin/env python3
-import sys
-import os
-sys.path.append('/app')
-
-# Import the client
-try:
-    import openai_batch_client as batch
-    
-    print("✅ Client import successful")
-    
-    # Test batch creation
-    print("\n📝 Testing batch creation...")
-    response = batch.create_batch(
-        model="Qwen/Qwen2.5-0.5B-Instruct",
-        input=[
-            {"prompt": "What is the capital of France?"},
-            {"prompt": "Explain Python in one sentence"}
-        ],
-        max_tokens=50,
-        temperature=0.7
-    )
-    
-    job_id = response["id"]
-    print(f"✅ Job created: {job_id}")
-    
-    # Test status retrieval
-    print("\n📊 Testing status retrieval...")
-    status = batch.retrieve_batch(job_id)
-    print(f"✅ Status retrieved: {status['status']}")
-    
-    # Test validation
-    print("\n✅ Testing input validation...")
-    validation = batch.BatchClient().validate_input({
-        "model": "Qwen/Qwen2.5-0.5B-Instruct",
-        "input": [{"prompt": "Test validation"}],
-        "max_tokens": 50
-    })
-    print(f"✅ Validation result: {validation['is_valid']}")
-    
-    # Test cost estimation
-    print("\n💰 Testing cost estimation...")
-    cost = batch.BatchClient().estimate_cost(
-        model="Qwen/Qwen2.5-0.5B-Instruct",
-        input=[{"prompt": "Test cost estimation"}],
-        max_tokens=50
-    )
-    print(f"✅ Cost estimate: ${cost['estimated_cost_usd']:.6f}")
-    
-    print("\n🎉 All client tests passed!")
-    
-except ImportError as e:
-    print(f"❌ Client import failed: {e}")
-except Exception as e:
-    print(f"❌ Client test failed: {e}")
-EOF
-
-# Run the test inside container
-docker exec doubleword-container python /tmp/test_client.py
-```
-
-### 10. Test Error Handling
-
-```bash
-# Test with invalid job ID
-echo "Testing invalid job ID..."
-curl -s "$BATCH_API_URL/v1/batches/invalid_job_id" | jq .
-
-# Test with malformed JSON
-echo "Testing malformed JSON..."
-curl -s -X POST "$BATCH_API_URL/v1/batches" \
-  -H "Content-Type: application/json" \
-  -d '{"invalid": json}' | jq .
-
-# Test with missing required fields
-echo "Testing missing required fields..."
-curl -s -X POST "$BATCH_API_URL/v1/batches" \
-  -H "Content-Type: application/json" \
-  -d '{"model": "test"}' | jq .
-```
-
-### 11. Performance Testing
-
-```bash
-# Test concurrent batch submissions
-echo "Testing concurrent submissions..."
-
-CONCURRENT_JOBS=5
-PIDS=()
-
-for i in $(seq 1 $CONCURRENT_JOBS); do
-    (
-        BATCH_RESPONSE=$(curl -s -X POST "$BATCH_API_URL/v1/batches" \
-          -H "Content-Type: application/json" \
-          -d "{
-            \"model\": \"Qwen/Qwen2.5-0.5B-Instruct\",
-            \"input\": [
-              {\"prompt\": \"Concurrent test $i - prompt 1\"},
-              {\"prompt\": \"Concurrent test $i - prompt 2\"}
-            ],
-            \"max_tokens\": 30
-          }")
-        
-        JOB_ID=$(echo "$BATCH_RESPONSE" | jq -r '.id')
-        echo "Started concurrent job $i: $JOB_ID"
-    ) &
-    PIDS+=($!)
-done
-
-# Wait for all background jobs
-wait "${PIDS[@]}"
-
-echo "All concurrent jobs submitted"
-```
-
-### 12. Integration Test Script
-
-```bash
-# Complete integration test
-cat > /tmp/integration_test.sh << 'EOF'
-#!/bin/bash
-
-set -e
-
-API_URL="${BATCH_API_URL:-http://localhost:8000}"
-TEST_DIR="${TEST_OUTPUT_DIR:-/tmp/integration_test}"
-mkdir -p "$TEST_DIR"
-
-echo "🧪 Starting Integration Test"
-echo "API URL: $API_URL"
-echo "Test Directory: $TEST_DIR"
-
-# Step 1: Health Check
-echo "1️⃣ Testing health endpoint..."
-HEALTH=$(curl -s "$API_URL/health")
-if [[ $(echo "$HEALTH" | jq -r '.status') != "healthy" ]]; then
-    echo "❌ Health check failed"
-    exit 1
-fi
-echo "✅ Health check passed"
-
-# Step 2: Create Batch
-echo "2️⃣ Creating batch job..."
-BATCH_CREATE=$(curl -s -X POST "$API_URL/v1/batches" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "Qwen/Qwen2.5-0.5B-Instruct",
-    "input": [
-      {"prompt": "Integration test prompt 1"},
-      {"prompt": "Integration test prompt 2"}
-    ],
-    "max_tokens": 50
-  }')
-
-JOB_ID=$(echo "$BATCH_CREATE" | jq -r '.id')
-echo "✅ Batch created: $JOB_ID"
-
-# Step 3: Wait for Completion
-echo "3️⃣ Waiting for completion..."
-TIMEOUT=180
-ELAPSED=0
-
-while [ $ELAPSED -lt $TIMEOUT ]; do
-    STATUS=$(curl -s "$API_URL/v1/batches/$JOB_ID" | jq -r '.status')
-    echo "   Status: $STATUS"
-    
-    if [[ "$STATUS" == "completed" ]]; then
-        echo "✅ Job completed successfully"
-        break
-    elif [[ "$STATUS" == "failed" ]]; then
-        echo "❌ Job failed"
-        exit 1
-    fi
-    
-    sleep 5
-    ELAPSED=$((ELAPSED + 5))
-done
-
-if [ $ELAPSED -ge $TIMEOUT ]; then
-    echo "❌ Job timed out"
-    exit 1
-fi
-
-# Step 4: Retrieve Results
-echo "4️⃣ Retrieving results..."
-RESULTS=$(curl -s "$API_URL/v1/batches/$JOB_ID/results")
-echo "$RESULTS" | jq . > "$TEST_DIR/integration_results.json"
-
-RESULT_COUNT=$(echo "$RESULTS" | jq '.data | length')
-echo "✅ Retrieved $RESULT_COUNT results"
-
-# Step 5: Validate Results
-echo "5️⃣ Validating results..."
-for i in $(seq 0 $((RESULT_COUNT - 1))); do
-    PROMPT=$(echo "$RESULTS" | jq -r ".data[$i].input.prompt")
-    OUTPUT=$(echo "$RESULTS" | jq -r ".data[$i].output_text")
-    TOKENS=$(echo "$RESULTS" | jq -r ".data[$i].tokens_generated")
-    
-    if [[ -n "$PROMPT" && -n "$OUTPUT" && "$TOKENS" =~ ^[0-9]+$ ]]; then
-        echo "   ✅ Result $i: Valid"
-    else
-        echo "   ❌ Result $i: Invalid"
-    fi
-done
-
-echo ""
-echo "🎉 Integration test completed successfully!"
-echo "Results saved to: $TEST_DIR/integration_results.json"
-EOF
-
-# Make executable and run
-chmod +x /tmp/integration_test.sh
-/tmp/integration_test.sh
-```
-
-### 13. Test Results Summary
-
-```bash
-# Create test summary
-cat > /tmp/test_summary.md << 'EOF'
-# Test Results Summary
-
-## Tests Performed
-- [x] API Connectivity
-- [x] Health Check
-- [x] Batch Job Creation
-- [x] Job Status Retrieval
-- [x] Results Retrieval
-- [x] Input Validation
-- [x] Cost Estimation
-- [x] Python Client Library
-- [x] Error Handling
-- [x] Performance Testing
-- [x] Integration Testing
-
-## Expected Results
-- All API endpoints should respond with proper HTTP status codes
-- Batch jobs should process within reasonable time
-- Results should maintain input-output mapping
-- Validation should catch malformed inputs
-- Cost estimation should provide reasonable estimates
-- Error handling should be graceful
-
-## Troubleshooting
-If tests fail:
-1. Check container logs: `docker logs doubleword-container`
-2. Verify API endpoints: `curl -s http://localhost:8000/health`
-3. Check resource usage: `docker stats doubleword-container`
-4. Restart container: `docker restart doubleword-container`
-EOF
-
-echo "📋 Test summary created: /tmp/test_summary.md"
-cat /tmp/test_summary.md
-```
-
-### Running All Tests
-
-```bash
-# Execute complete test suite
-echo "🚀 Running complete test suite..."
-
-# Run individual test components
-bash /tmp/integration_test.sh
-docker exec doubleword-container python /tmp/test_client.py
-
-# Performance test
-echo "Running performance test..."
-bash -c 'source /tmp/performance_test.sh'
-
-echo ""
-echo "✅ All tests completed!"
-echo "📊 Check test outputs in: $TEST_OUTPUT_DIR"
-ls -la "$TEST_OUTPUT_DIR"
-```
-
-### Test Cleanup
-
-```bash
-# Clean up test artifacts
-echo "🧹 Cleaning up test artifacts..."
-rm -rf /tmp/test_*
-rm -f /tmp/test_client.py
-rm -f /tmp/integration_test.sh
-rm -f /tmp/test_summary.md
-
-echo "✅ Cleanup completed"
-```
-
-This comprehensive testing suite validates all aspects of the OpenAI-compatible batch interface including:
-- Basic API functionality
-- Batch job lifecycle management
-- Input validation and error handling
-- Performance under load
-- Integration testing
-- Client library functionality
-
+## Next Steps
+
+If you want to extend this PoC:
+
+* **Diagrams** (Mermaid sequence diagrams for job flow)
+* **API spec** (OpenAPI YAML specification)
+* **Client CLI** (Python CLI for batch submission)
+* **Implementation templates** (Docker Compose, Ray Data pipeline, scheduler logic)
+* **Test suite** (Unit tests for scheduler, queue, API endpoints)
