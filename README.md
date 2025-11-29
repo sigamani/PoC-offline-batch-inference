@@ -18,6 +18,7 @@ The PoC uses:
 Production-grade substitutes are outlined for each component.
 
 ---
+<details>
 
 # 1. Research Summary: Current Trends in Offline/Batch LLM Inference
 
@@ -66,6 +67,8 @@ Two patterns dominate:
 * PoCs avoid Redis, Celery, Kafka, etc.; they use local queues or in-memory runners
 
 This PoC aligns with these trends.
+
+</details>
 
 ---
 
