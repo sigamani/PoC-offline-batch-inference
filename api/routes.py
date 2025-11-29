@@ -155,12 +155,10 @@ async def create_openai_batch(request: OpenAIBatchRequest):
             "error_file": f"{batch_id}_errors.jsonl"
         }
         
-        # Save job metadata
         job_path = os.path.join(BATCH_DIR, f"job_{batch_id}.json")
         with open(job_path, "w") as f:
             json.dump(job_data, f, indent=2)
         
-        # Save input prompts as JSONL
         input_path = os.path.join(BATCH_DIR, f"{batch_id}_input.jsonl")
         with open(input_path, "w") as f:
             for prompt in prompts:
@@ -170,7 +168,6 @@ async def create_openai_batch(request: OpenAIBatchRequest):
         priority = calculate_priority(created_at, len(prompts))
         logger.info(f"Enqueuing batch {batch_id} with priority {priority} and {len(prompts)} prompts")
         
-        # Enqueue job for processing
         job_queue.enqueue({
             "job_id": batch_id,
             "input_file": input_path,
@@ -214,7 +211,6 @@ async def get_openai_batch_results(batch_id: str):
         if not os.path.exists(output_file):
             raise HTTPException(status_code=404, detail="Batch results not found")
         
-        # Load results from JSONL file
         results = []
         with open(output_file, 'r') as f:
             for line in f:
@@ -233,7 +229,6 @@ if __name__ == "__main__":
         """Test the complete batch workflow"""
         logger.info("Testing batch workflow...")
         
-        # Test 1: Create a batch job
         logger.info("Creating batch job...")
         test_request = {
             "model": "Qwen/Qwen2.5-0.5B-Instruct",
@@ -247,7 +242,6 @@ if __name__ == "__main__":
         }
         
         try:
-            # Simulate POST request
             from fastapi.testclient import TestClient
             client = TestClient(app)
             response = client.post("/v1/batches", json=test_request)
