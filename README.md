@@ -1,5 +1,7 @@
-This Proof-of-Concept demonstrates an OpenAI-style offline batch inference system designed to validate core architectural patterns for request marshalling, job lifecycle management, and compute resource allocation. The system uses minimal dependencies while aligning with industry best practices, enabling validation of API semantics, batching workflows, and resource scheduling without requiring actual GPU infrastruc<img width="2400" height="1600" alt="Trends_in_engines,_servers,_frameworks,_and_patterns_for_offline_and_batch_LLM_inference_in_recent_public_GitHub_projects" src="https://github.com/user-attachments/assets/6649c5b4-eacb-405a-b577-66a9fc2fd03f" />
-ture or distributed systems.
+This Proof-of-Concept demonstrates an OpenAI-style offline batch inference system designed to validate core architectural patterns for request marshalling, job lifecycle management, and compute resource allocation. The system uses minimal dependencies while aligning with industry best practices, enabling validation of API semantics, batching workflows, and resource scheduling without requiring actual GPU infrastructure or distributed systems. 
+
+<img width="2400" height="1600" alt="Trends_in_engines,_servers,_frameworks,_and_patterns_for_offline_and_batch_LLM_inference_in_recent_public_GitHub_projects" src="https://github.com/user-attachments/assets/6649c5b4-eacb-405a-b577-66a9fc2fd03f" />
+
 
 # Offline Batch Inference PoC (OpenAI-Style)
 
