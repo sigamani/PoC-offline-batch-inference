@@ -26,41 +26,6 @@ Production-grade substitutes are outlined for each component.
 
 Derived from analysis of public GitHub repositories and industry examples
 
-## References
-
-- NVIDIA. “The Triton TensorRT-LLM Backend.” https://github.com/triton-inference-server/tensorrtllm_backend
-- NVIDIA. “Dynamic Batcher - NVIDIA Triton Inference Server.” https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/user_guide/batcher.html
-- vLLM Project. “performance and concurrency questions · Issue #2308.” https://github.com/vllm-project/vllm/issues/2308
-- NVIDIA. “Is there any plan to open source Inflight Batching for LLM Serving?” https://github.com/triton-inference-server/server/issues/6358
-- Hugging Face. “Large Language Model Text Generation Inference on Habana Gaudi.” https://github.com/huggingface/tgi-gaudi
-- NVIDIA. “Optimizing Inference on Large Language Models with TensorRT-LLM.” https://developer.nvidia.com/blog/optimizing-inference-on-llms-with-tensorrt-llm-now-publicly-available/
-- NVIDIA. “inflight_batcher_llm example batching · Issue #558.” https://github.com/triton-inference-server/tensorrtllm_backend/issues/558
-- Hannibal046. “Awesome-LLM: a curated list of Large Language Model.” https://github.com/Hannibal046/Awesome-LLM
-- NVIDIA. “Overview — TensorRT-LLM Performance.” https://nvidia.github.io/TensorRT-LLM/performance/perf-overview.html
-- NVIDIA. “triton-inference-server/backend.” https://github.com/triton-inference-server/backend
-- Hugging Face. “Rules of thumb for setting max-batch-total-tokens · Issue #629.” https://github.com/huggingface/text-generation-inference/issues/629
-- NVIDIA. “NVIDIA/TensorRT-LLM.” https://github.com/NVIDIA/TensorRT-LLM
-- NVIDIA. “Expected batch dimension to be 1 for each request for input_ids · Issue #319.” https://github.com/triton-inference-server/tensorrtllm_backend/issues/319
-- Hugging Face. “Text Generation Inference Documentation.” https://huggingface.co/docs/text-generation-inference/en/index
-- Ray Project. “[data.llm] Support TensorRT-LLM offline inference with Ray.” https://github.com/ray-project/ray/issues/56989
-- Hugging Face. “Large Language Model Text Generation Inference.” https://github.com/huggingface/text-generation-inference
-- simonorzel26. “openai-batch-awaiter.” https://github.com/simonorzel26/openai-batch-awaiter
-- miko-ai-org. “llmbatching: An openAI / LLM API wrapper.” https://github.com/miko-ai-org/llmbatching
-- EasyLLM. “LangBatch.” https://github.com/EasyLLM/langbatch
-- Microsoft. “Azure OpenAI Batch API Accelerator.” https://github.com/Azure-Samples/aoai-batch-api-accelerator
-- SpellcraftAI. “oaib: Use the OpenAI Batch tool to make async requests.” https://github.com/SpellcraftAI/oaib
-- Amazon Web Services. “Submit a batch of prompts with the OpenAI Batch API.” https://docs.aws.amazon.com/bedrock/latest/userguide/inference-openai-batch.html
-- Koray Gocmen. “scheduler-worker-grpc.” https://github.com/KorayGocmen/scheduler-worker-grpc
-- OpenAI. “Batch API – OpenAI Platform.” https://platform.openai.com/docs/guides/batch
-- GitHub. “dynamic-batching · GitHub Topics.” https://github.com/topics/dynamic-batching
-- Guy Gregory. “Azure OpenAI - Structured Outputs & Batch API.” https://github.com/guygregory/StructuredBatch
-- iPieter. “llmq: A Scheduler for Batched LLM Inference.” https://github.com/iPieter/llmq
-- zheqiaochen. “OpenAI Batch Tools.” https://github.com/zheqiaochen/openaibatch
-- OpenAI. “Batch processing with the Batch API.” https://cookbook.openai.com/examples/batch_processing
-- EthicalML. “awesome-production-machine-learning.” https://ethicalml.github.io/awesome-production-machine-learning/
-- danvk. “gpt-batch-manager: Tools for splitting jobs across batches.” https://github.com/danvk/gpt-batch-manager
-- alexrudall. “ruby-openai: OpenAI API + Ruby.” https://github.com/alexrudall/ruby-openai
-
 
 ## 1.1 Engines
 
@@ -383,12 +348,37 @@ curl http://localhost:8000/v1/batches/{batch_id}
 
 ---
 
-## Next Steps
+## References
 
-If you want to extend this PoC:
-
-* **Diagrams** (Mermaid sequence diagrams for job flow)
-* **API spec** (OpenAPI YAML specification)
-* **Client CLI** (Python CLI for batch submission)
-* **Implementation templates** (Docker Compose, Ray Data pipeline, scheduler logic)
-* **Test suite** (Unit tests for scheduler, queue, API endpoints)
+- NVIDIA. “The Triton TensorRT-LLM Backend.” https://github.com/triton-inference-server/tensorrtllm_backend
+- NVIDIA. “Dynamic Batcher - NVIDIA Triton Inference Server.” https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/user_guide/batcher.html
+- vLLM Project. “performance and concurrency questions · Issue #2308.” https://github.com/vllm-project/vllm/issues/2308
+- NVIDIA. “Is there any plan to open source Inflight Batching for LLM Serving?” https://github.com/triton-inference-server/server/issues/6358
+- Hugging Face. “Large Language Model Text Generation Inference on Habana Gaudi.” https://github.com/huggingface/tgi-gaudi
+- NVIDIA. “Optimizing Inference on Large Language Models with TensorRT-LLM.” https://developer.nvidia.com/blog/optimizing-inference-on-llms-with-tensorrt-llm-now-publicly-available/
+- NVIDIA. “inflight_batcher_llm example batching · Issue #558.” https://github.com/triton-inference-server/tensorrtllm_backend/issues/558
+- Hannibal046. “Awesome-LLM: a curated list of Large Language Model.” https://github.com/Hannibal046/Awesome-LLM
+- NVIDIA. “Overview — TensorRT-LLM Performance.” https://nvidia.github.io/TensorRT-LLM/performance/perf-overview.html
+- NVIDIA. “triton-inference-server/backend.” https://github.com/triton-inference-server/backend
+- Hugging Face. “Rules of thumb for setting max-batch-total-tokens · Issue #629.” https://github.com/huggingface/text-generation-inference/issues/629
+- NVIDIA. “NVIDIA/TensorRT-LLM.” https://github.com/NVIDIA/TensorRT-LLM
+- NVIDIA. “Expected batch dimension to be 1 for each request for input_ids · Issue #319.” https://github.com/triton-inference-server/tensorrtllm_backend/issues/319
+- Hugging Face. “Text Generation Inference Documentation.” https://huggingface.co/docs/text-generation-inference/en/index
+- Ray Project. “[data.llm] Support TensorRT-LLM offline inference with Ray.” https://github.com/ray-project/ray/issues/56989
+- Hugging Face. “Large Language Model Text Generation Inference.” https://github.com/huggingface/text-generation-inference
+- simonorzel26. “openai-batch-awaiter.” https://github.com/simonorzel26/openai-batch-awaiter
+- miko-ai-org. “llmbatching: An openAI / LLM API wrapper.” https://github.com/miko-ai-org/llmbatching
+- EasyLLM. “LangBatch.” https://github.com/EasyLLM/langbatch
+- Microsoft. “Azure OpenAI Batch API Accelerator.” https://github.com/Azure-Samples/aoai-batch-api-accelerator
+- SpellcraftAI. “oaib: Use the OpenAI Batch tool to make async requests.” https://github.com/SpellcraftAI/oaib
+- Amazon Web Services. “Submit a batch of prompts with the OpenAI Batch API.” https://docs.aws.amazon.com/bedrock/latest/userguide/inference-openai-batch.html
+- Koray Gocmen. “scheduler-worker-grpc.” https://github.com/KorayGocmen/scheduler-worker-grpc
+- OpenAI. “Batch API – OpenAI Platform.” https://platform.openai.com/docs/guides/batch
+- GitHub. “dynamic-batching · GitHub Topics.” https://github.com/topics/dynamic-batching
+- Guy Gregory. “Azure OpenAI - Structured Outputs & Batch API.” https://github.com/guygregory/StructuredBatch
+- iPieter. “llmq: A Scheduler for Batched LLM Inference.” https://github.com/iPieter/llmq
+- zheqiaochen. “OpenAI Batch Tools.” https://github.com/zheqiaochen/openaibatch
+- OpenAI. “Batch processing with the Batch API.” https://cookbook.openai.com/examples/batch_processing
+- EthicalML. “awesome-production-machine-learning.” https://ethicalml.github.io/awesome-production-machine-learning/
+- danvk. “gpt-batch-manager: Tools for splitting jobs across batches.” https://github.com/danvk/gpt-batch-manager
+- alexrudall. “ruby-openai: OpenAI API + Ruby.” https://github.com/alexrudall/ruby-openai
