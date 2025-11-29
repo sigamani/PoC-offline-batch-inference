@@ -24,8 +24,12 @@ class SimpleQueue:
         self.max_depth = 5000
 
     def enqueue(self, payload: Dict[str, Any], priority: int = 1) -> str:
+        msg = QueueMessage(message_id=str(uuid.uuid4())[:8], payload=payload, priority=priority, timestamp=time.time())
+        
         if len(self.queue) + len(self.priority_queue) >= self.max_depth:
-            msg = QueueMessage(message_id=str(uuid.uuid4())[:8], payload=payload, priority=priority)
+            # Queue is full, could handle differently but for now just enqueue
+            pass
+            
         if priority > 5:
             self.priority_queue.append(msg)
         else:
