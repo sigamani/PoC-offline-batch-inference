@@ -1,6 +1,6 @@
 # Offline Batch Inference PoC (OpenAI-Style)
 
-### Using Ray Data + vLLM + FastAPI + In-Memory Queue
+### Ray Data + vLLM + FastAPI + In-Memory Queue
 
 ## Overview
 
