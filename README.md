@@ -259,7 +259,7 @@ gpu_pool = {
 ---
 
 <details>
-<summary><strong> 5. Current Industry Trends </strong></summary>
+<summary><strong> 5. Alignment with Best Practice </strong></summary>
 
 <br> 
 
