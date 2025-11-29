@@ -200,7 +200,7 @@ gpu_pool = {
 ---
 
 <details>
-<summary><strong> 4. PoC Scope Definition </strong></summary>
+<summary><strong> 4. Scope Definition </strong></summary>
 
 <br>
  
