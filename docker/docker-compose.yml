@@ -1,8 +1,7 @@
-version: '3.8'
 services:
   vllm:
     build:
-      context: .
+      context: ..
       dockerfile: docker/Dockerfile.vllm
     environment:
       - RAY_BACKEND=log
@@ -10,7 +9,33 @@ services:
       - GPU_AVAILABLE=true
       - VLLM_CPU_KV_CACHE_SPACE=4096
     working_dir: /app
-    command: uvicorn api.main:app --host
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./api:/app/api
+      - ./pipeline:/app/pipeline
+      - ./pyproject.toml:/app/pyproject.toml
+      - batch_storage:/tmp
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.vllm
+    environment:
+      - RAY_BACKEND=log
+      - ENVIRONMENT=DEV
+      - GPU_AVAILABLE=false
+    working_dir: /app
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+        - ../api:/app/api
+        - ../pipeline:/app/pipeline
+        - ../pyproject.toml:/app/pyproject.toml
+        - batch_storage:/tmp
+    depends_on:
+        - vllm
 volumes:
   batch_storage:
     driver: local

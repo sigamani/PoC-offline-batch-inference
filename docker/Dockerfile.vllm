@@ -1,5 +1,4 @@
 FROM vllm/vllm-openai:latest
-# Install Ray and our tested packages
 RUN pip install -r requirements.dev
 WORKDIR /app
 COPY api/ ./api/
