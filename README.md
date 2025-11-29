@@ -18,9 +18,8 @@ The PoC uses:
 Production-grade substitutes are outlined for each component.
 
 ---
-<# 1. Research Summary: Current Trends in Offline/Batch LLM Inference>
-
-
+<details>
+<summary><strong> 1. Research Summary: Current Trends in Offline/Batch LLM Inference
 <img width="2400" height="1600" alt="Trends_in_engines,_servers,_frameworks,_and_patterns_for_offline_and_batch_LLM_inference_in_recent_public_GitHub_projects" src="https://github.com/user-attachments/assets/6649c5b4-eacb-405a-b577-66a9fc2fd03f" />
 
 Derived from analysis of public GitHub repositories and industry examples [See Key References](#9-key-references)
@@ -66,7 +65,7 @@ Two patterns dominate:
 
 This PoC aligns with these trends.
 
-</# 1. Research Summary: Current Trends in Offline/Batch LLM Inference>
+<details>
 
 ---
 
