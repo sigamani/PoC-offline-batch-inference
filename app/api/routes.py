@@ -23,10 +23,17 @@ executor = ThreadPoolExecutor(max_workers=4)
 from app.core.queue import SimpleQueue
 job_queue = SimpleQueue()
 
+
 from app.core.worker import BatchWorker
-# Initialize and start worker
-batch_worker = BatchWorker(job_queue)
-batch_worker.start()
+try:
+    batch_worker = BatchWorker(job_queue)
+    batch_worker.start()
+    logger.info("Batch worker started successfully")
+except Exception as e:
+    logger.error(f"Failed to start worker: {e}")
+    import traceback
+    traceback.print_exc()
+
 
 
 app = FastAPI(
@@ -97,6 +104,15 @@ def load_batch(batch_id: str):
         raise HTTPException(status_code=404, detail="Batch not found")
     with open(path, "r") as f:
         return json.load(f)
+
+@app.get("/debug/worker")
+async def debug_worker():
+    """Debug endpoint to check worker status"""
+    return {
+        "worker_running": batch_worker.running if 'batch_worker' in globals() else False,
+        "queue_depth": job_queue.get_depth(),
+        "worker_thread_alive": batch_worker.worker_thread.is_alive() if 'batch_worker' in globals() and batch_worker.worker_thread else False
+    }
 
 # ---------------------------
 # Endpoints
