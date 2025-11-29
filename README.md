@@ -112,6 +112,25 @@ This PoC aligns with these trends.
                 └────────────────────────┘
 ```
 
+## Getting Started
+
+```bash
+# Clone repository
+git clone https://github.com/sigamani/PoC-offline-batch-inference.git
+cd PoC-offline-batch-inference
+
+# Start all services
+docker-compose up
+
+# Submit a batch job (example)
+curl -X POST http://localhost:8000/v1/batches \
+  -H "Content-Type: application/json" \
+  -d @examples/sample_batch.jsonl
+
+# Check job status
+curl http://localhost:8000/v1/batches/{batch_id}
+```
+
 ---
 
 # 3. Component Choices and Rationale
@@ -324,27 +343,6 @@ The PoC does **not** validate:
 * GitHub repositories surveyed for offline/batch LLM inference (vLLM, TGI, TensorRT-LLM, custom pipelines)
 * Summary research output from Perplexity PDF
 * OpenAI Batch API documentation patterns
-
----
-
-## Getting Started
-
-```bash
-# Clone repository
-git clone <repo-url>
-cd <repo-name>
-
-# Start all services
-docker-compose up
-
-# Submit a batch job (example)
-curl -X POST http://localhost:8000/v1/batches \
-  -H "Content-Type: application/json" \
-  -d @examples/sample_batch.jsonl
-
-# Check job status
-curl http://localhost:8000/v1/batches/{batch_id}
-```
 
 ---
 
