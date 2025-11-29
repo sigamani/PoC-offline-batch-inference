@@ -49,7 +49,6 @@ class SimpleQueue:
         return len(self.queue) + len(self.priority_queue)
 
 
-# Example usage
 if __name__ == "__main__":
     q = SimpleQueue()
     q.enqueue({"task": "process_data"}, priority=3)

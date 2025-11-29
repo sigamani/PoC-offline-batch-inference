@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.api
+    ports:
+        - "8000:8000"
+    environment:
+      - RAY_BACKEND: log
+    volumes:
+      - ./app:/app
+      - /tmp:/tmp
+    depends_on:
+      - api
+
+  vllm:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.vllm
+    profiles:
+      - silicon:  # For Apple Silicon Mac
+      - linux:   # For Linux x86_64
+    volumes:
+      - ./app:/app
+      - /tmp:/tmp
+    environment:
+      - VLLM_USE_CPU: 1  # Force CPU mode
+      - VLLM_CPU_KV_CACHE_SPACE: 4  # 4GB cache for CPU
+    profiles:
+      - silicon:  # Apple Silicon with CPU optimizations
+        environment:
+          - VLLM_USE_CPU: 1
+          - VLLM_CPU_KV_CACHE_SPACE: 4
+          - VLLM_ATTENTION_BACKEND: FLASHINFER
+          - VLLM_USE_TRITON: 0
+      - linux:  # Linux x86_64
+        environment:
+          - VLLM_CPU_KV_CACHE_SPACE: 4
+    depends_on:
+      - api
+
+  # Development profile with both services
+  dev:
+    profiles:
+      - silicon:
+        services:
+          api:
+            extends: api
+            environment:
+              - RAY_BACKEND: log
+              - DEBUG: 1
+          vllm:
+            extends: vllm
+            profiles:
+              - silicon
+            environment:
+              - VLLM_USE_CPU: 1
+              - VLLM_CPU_KV_CACHE_SPACE: 4
+              - VLLM_ATTENTION_BACKEND: FLASHINFER
+              - VLLM_USE_TRITON: 0

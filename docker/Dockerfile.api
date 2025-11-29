@@ -1,0 +1,35 @@
+# Use Python 3.11 slim as base for better compatibility
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    git
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY app/ ./app/
+COPY examples/ ./examples/
+
+# Create non-root user for security
+RUN useradd -m -u appuser
+
+# Set permissions
+RUN chown -R appuser:appuser /app
+
+# Expose API port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/ || exit 1
+
+# Default command - run API server
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
