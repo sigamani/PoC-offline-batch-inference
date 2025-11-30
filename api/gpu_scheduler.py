@@ -6,9 +6,11 @@ Includes resource constraints, cost tracking, and stress testing capabilities.
 import logging
 import time
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, Optional, List
 logger = logging.getLogger(__name__)
+
+from api.models import priorityLevels
 
 class PoolType(Enum):
     SPOT = "spot"
@@ -53,18 +55,17 @@ class MockGPUScheduler:
         self.rejected_jobs = 0
         self.total_allocations = 0 
         
-    def allocate_gpu(self, job_id: str, priority_level: int = 1) -> AllocationResult:
+    def allocate_gpu(self, job_id: str, priority_level: priorityLevels = priorityLevels.LOW) -> AllocationResult:
         start_time = time.time()
         
-        is_high_priority = priority_level >= 8
-        
         if self._no_resources_available():
-            if is_high_priority:
+            if priority_level == priorityLevels.HIGH:
                 self.waiting_queue.insert(0, job_id)
             else:
                 self.waiting_queue.append(job_id)
             
-            queue_pos = self.waiting_queue.index(job_id)
+            queue_pos = self.waiting_queue.index(job_id) + 1 
+
             return AllocationResult(
                 pool_type=PoolType.SPOT,
                 allocated=False,
@@ -73,7 +74,7 @@ class MockGPUScheduler:
                 queue_position=queue_pos
             )
         
-        if is_high_priority:
+        if priority_level == priorityLevels.HIGH:
             allocation = self._try_allocate_dedicated(job_id)
             if not allocation.allocated:
                 allocation = self._try_allocate_spot(job_id)
