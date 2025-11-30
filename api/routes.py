@@ -137,6 +137,14 @@ async def generate_batch(request: BatchRequest):
         throughput=len(request.prompts)/total_time if total_time > 0 else 0
     )
 
+@app.get("/queue/stats")
+async def get_queue_stats():
+    """Get current queue statistics"""
+    return {
+        "depth": job_queue.get_depth(),
+        "max_depth": job_queue.max_depth
+    }
+
 @app.get("/v1/batches")
 async def list_batches():
     try:
@@ -215,6 +223,18 @@ async def create_openai_batch(request: OpenAIBatchRequest):
             "temperature": request.temperature,
             "error_file": os.path.join(BATCH_DIR, f"{batch_id}_errors.jsonl")
         }
+        
+        # Actually enqueue the job!
+        try:
+            message_id = job_queue.enqueue(job_payload, priority)
+            if message_id:
+                logger.info(f"Successfully enqueued batch {batch_id} with message_id {message_id}, queue depth: {job_queue.get_depth()}")
+            else:
+                logger.error(f"Failed to enqueue batch {batch_id} - queue returned None")
+                raise HTTPException(status_code=503, detail="Queue full - unable to enqueue batch")
+        except Exception as e:
+            logger.error(f"Error enqueuing batch {batch_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to enqueue batch: {str(e)}")
                 
         return OpenAIBatchResponse(
             id=batch_id,
@@ -264,5 +284,9 @@ async def get_openai_batch_results(batch_id: str):
                     results.append(json.loads(line))
         
         return {"object": "list", "data": results}
+    except HTTPException:
+        raise
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=500, detail=f"Invalid JSON in batch results: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to load batch results")
+        raise HTTPException(status_code=500, detail=f"Failed to load batch results: {str(e)}")

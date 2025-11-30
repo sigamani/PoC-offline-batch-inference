@@ -42,6 +42,12 @@ def server_url():
     server_process.wait(timeout=5)
 
 def test_batch_creation(server_url):
+    # Check initial queue depth
+    queue_response = requests.get(f"{server_url}/queue/stats")
+    initial_depth = 0
+    if queue_response.status_code == 200:
+        initial_depth = queue_response.json().get("depth", 0)
+    
     test_data = {
         "model": "Qwen/Qwen2.5-0.5B-Instruct",
         "input": [
@@ -88,6 +94,12 @@ def test_batch_creation(server_url):
     prompts = [json.loads(line)["prompt"] for line in lines]
     assert "What is 2+2?" in prompts
     assert "Hello world" in prompts
+    
+    # Verify queue depth increased
+    queue_response = requests.get(f"{server_url}/queue/stats")
+    if queue_response.status_code == 200:
+        final_depth = queue_response.json().get("depth", 0)
+        assert final_depth == initial_depth + 1, f"Queue depth should increase by 1, was {initial_depth}, now {final_depth}"
 
 def test_batch_list(server_url):
     response = requests.get(f"{server_url}/v1/batches")
