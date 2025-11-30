@@ -33,10 +33,9 @@ Used Python’s native deque - Implemented FIFO - Avoided hiding behaviour
 behind external systems
 
 ### **<span style="color:#E74C3C;"> Docker + Docker Compose</span>**  
-The [docker](https://github.com/sigamani/PoC-offline-batch-inference/tree/main/docker)/ directory contains the staging environment. Validated using low-cost GPU nodes on Vast.ai but
-compatible with any NVIDIA-equipped machine. Primary goals: - Integrate
-vllm==0.10.0 with FastAPI + Ray Data 2.49.1 - Test full pipeline using a
-real model - Keep staging under 24 GiB VRAM using Qwen2.5-0.5B. For production: transition to Kubernetes or KubeRay.
+The [docker](https://github.com/sigamani/PoC-offline-batch-inference/tree/main/docker)/ directory contains the staging environment. 
+Validated using low-cost GPU nodes on Vast.ai but
+compatible with any NVIDIA-equipped machine.
 
 Lastly, in production I would consider using Redis, Redis Streams, Celery, or Kafka.
 
