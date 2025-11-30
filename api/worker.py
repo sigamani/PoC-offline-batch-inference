@@ -94,43 +94,37 @@ class BatchWorker:
             logger.info(f"Loaded {len(prompts)} prompts")
             
             logger.info("Starting batch inference...")
-
-            try:
-                import threading
-                
-                timeout_occurred = threading.Event()
-                
-                def timeout_handler():
-                    timeout_occurred.set()
-                
-                timer = threading.Timer(30.0, timeout_handler)  
-                timer.start()
-                
-                results = self.pipeline.process_batch(prompts)
-                timer.cancel()
-                
-                if timeout_occurred.is_set():
-                    logger.warning("Batch inference timed out, using fallback")
-                    results = self.pipeline._fallback_process(prompts)
-                else:
-                    logger.info(f"Inference completed, got {len(results)} results")
+            
+            # Use fallback processing for dev mode to avoid Ray Data issues
+            if hasattr(self.pipeline.env_config, 'is_dev') and self.pipeline.env_config.is_dev:
+                logger.info("DEV mode detected, using fallback processing")
+                results = self.pipeline._fallback_process(prompts)
+            else:
+                try:
+                    import threading
                     
-            except Exception as e:
-                logger.error(f"Batch inference failed: {e}")
-                logger.info("Using fallback processing")
-                results = self.pipeline._fallback_process(prompts)
-                logger.info(f"Fallback inference completed, got {len(results)} results")
-
-            except TimeoutError:
-                logger.warning("Batch inference timed out, using fallback")
-                results = self.pipeline._fallback_process(prompts)
-                logger.info(f"Fallback inference completed, got {len(results)} results")
-     
-            except Exception as e:
-                logger.error(f"Batch inference failed: {e}")
-                logger.info("Using fallback processing")
-                results = self.pipeline._fallback_process(prompts)
-                logger.info(f"Fallback inference completed, got {len(results)} results")
+                    timeout_occurred = threading.Event()
+                    
+                    def timeout_handler():
+                        timeout_occurred.set()
+                    
+                    timer = threading.Timer(30.0, timeout_handler)  
+                    timer.start()
+                    
+                    results = self.pipeline.process_batch(prompts)
+                    timer.cancel()
+                    
+                    if timeout_occurred.is_set():
+                        logger.warning("Batch inference timed out, using fallback")
+                        results = self.pipeline._fallback_process(prompts)
+                    else:
+                        logger.info(f"Inference completed, got {len(results)} results")
+                        
+                except Exception as e:
+                    logger.error(f"Batch inference failed: {e}")
+                    logger.info("Using fallback processing")
+                    results = self.pipeline._fallback_process(prompts)
+                    logger.info(f"Fallback inference completed, got {len(results)} results")
             
             logger.info(f"Saving results to {output_file}")
             self._save_results(output_file, results)
