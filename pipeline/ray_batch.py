@@ -83,9 +83,9 @@ class RayBatchProcessor:
         return results
     
     def _execute_batch_processing(self, prompts: List[str]) -> List[Dict[str, Any]]:
-        ds = create_dataset(prompts)
-        logger.info(f"Created dataset with {ds.count()} samples")
-        return self._process_with_mock(ds)
+        logger.info(f"Processing {len(prompts)} prompts with mock inference")
+        # Skip Ray Data for now and use direct mock processing
+        return self._fallback_process(prompts)
     
     def _process_with_mock(self, ds) -> List[Dict[str, Any]]:
         logger.info("Using Ray Data map_batches with mock inference")
