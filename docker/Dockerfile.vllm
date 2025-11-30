@@ -1,20 +1,41 @@
-FROM vllm/vllm-openai:latest
+FROM python:3.12-slim
 
 WORKDIR /app
 
+# Install CUDA dependencies first
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    software-properties-common \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
 COPY requirements.dev ./
 
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.dev
 
+# Install vLLM with CUDA support
+RUN pip install --no-cache-dir vllm torch torchvision
+
+# Download model during build
+RUN mkdir -p /app/models && \
+    cd /app/models && \
+    git lfs install && \
+    git clone https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct
+
+# Copy application code
 COPY api/ ./api/
 COPY pipeline/ ./pipeline/
 COPY config.py ./
 
+# Create non-root user
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 
 USER appuser
 
-EXPOSE 8000
+EXPOSE 8001
 
-CMD ["vllm", "serve", "Qwen/Qwen2.5-0.5B-Instruct", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["vllm", "serve", "/app/models/Qwen2.5-0.5B-Instruct", "--host", "0.0.0.0", "--port", "8001"]
