@@ -1,4 +1,4 @@
-""" Data models for batch processing API. ""
+""" Data models for batch processing API. """
 
 from enum import Enum
 from typing import Any, Dict, List
