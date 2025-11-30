@@ -18,7 +18,7 @@ practical these new features are when integrating with actual buisness use cases
 Industry default for high-throughput, Python-native LLM
 inference. Fast to integrate and simpler than TensorRT-LLM for a PoC.
 
-### **<span style="color:#2ECC71;">FastAPI</span>** 
+### **<span style="color:#2ECC71;">FastAPI (0.100.0) </span>** 
 Fast, minimal, and ideal for PoC iteration. Swagger UI improves
 ease of validation across teams.
 
@@ -28,7 +28,7 @@ For me, database integration would have come with a lot of operational complexit
 with minimal payoff at this stage. Since I considered it more important to
 validate the core queuing logic (FIFO).
 
-### **<span style="color:#E74C3C;"> Docker + Docker Compose</span>**  
+### **<span style="color:#E74C3C;"> Docker Compose (v2) </span>**  
 The [docker](https://github.com/sigamani/PoC-offline-batch-inference/tree/main/docker) directory contains the staging environment setup details. 
 Validated using low-cost GPU nodes on Vast.ai but
 compatible with any NVIDIA-equipped machine.
