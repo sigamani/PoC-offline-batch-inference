@@ -29,33 +29,22 @@ class RayBatchProcessor:
     
     def _init_vllm_engine(self):
         try:
-            from vllm import LLM, SamplingParams
+            import requests
             
-            self.vllm_engine = LLM(
-                model=self.model_config.model_name,
-                max_model_len=self.model_config.max_model_len,
-                gpu_memory_utilization=0.85,
-                enforce_eager=True,
-                dtype="float16",
-                enable_chunked_prefill=True,
-                max_num_batched_tokens=2048,
-            )
+            # Use vLLM HTTP API instead of direct import
+            self.vllm_api_url = "http://vllm:8001/v1/completions"
+            self.vllm_engine = True  # Flag to indicate HTTP mode
             
-            self.sampling_params = SamplingParams(
-                temperature=self.model_config.temperature,
-                max_tokens=self.model_config.max_tokens,
-            )
-            
-            logger.info(f"vLLM engine initialized with model: {self.model_config.model_name}")
+            logger.info(f"vLLM HTTP client initialized for API: {self.vllm_api_url}")
             
         except Exception as e:
-            logger.error(f"Failed to initialize vLLM engine: {e}")
+            logger.error(f"Failed to initialize vLLM HTTP client: {e}")
             raise
     
     def process_batch(self, prompts: List[str]) -> List[Dict[str, Any]]:
         start_time = time.time()
         try:
-            if self.vllm_engine:
+            if hasattr(self, 'vllm_api_url'):
                 results = self._execute_vllm_batch(prompts)
             else:
                 results = self._execute_batch_processing(prompts)
@@ -66,19 +55,52 @@ class RayBatchProcessor:
             return self._fallback_process(prompts)
     
     def _execute_vllm_batch(self, prompts: List[str]) -> List[Dict[str, Any]]:
-        """Execute batch using real vLLM engine"""
-        logger.info(f"Processing {len(prompts)} prompts with vLLM")
-        
-        outputs = self.vllm_engine.generate(prompts, self.sampling_params)
+        """Execute batch using real vLLM HTTP API"""
+        logger.info(f"Processing {len(prompts)} prompts with vLLM HTTP API")
         
         results = []
-        for i, output in enumerate(outputs):
-            results.append({
-                "prompt": prompts[i],
-                "response": output.outputs[0].text,
-                "tokens": len(output.outputs[0].token_ids),
-                "processing_time": output.finish_time - output.start_time if hasattr(output, 'finish_time') else 0.001
-            })
+        import requests
+        import time
+        
+        for i, prompt in enumerate(prompts):
+            start_time = time.time()
+            try:
+                response = requests.post(
+                    self.vllm_api_url,
+                    json={
+                        "model": self.model_config.model_name,
+                        "prompt": prompt,
+                        "max_tokens": self.model_config.max_tokens,
+                        "temperature": self.model_config.temperature
+                    },
+                    timeout=30
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    response_text = data["choices"][0]["text"]
+                    tokens = len(data["choices"][0].get("logprobs", {}).get("token_ids", []))
+                else:
+                    response_text = f"Error: HTTP {response.status_code}"
+                    tokens = 0
+                
+                processing_time = time.time() - start_time
+                
+                results.append({
+                    "prompt": prompt,
+                    "response": response_text,
+                    "tokens": tokens,
+                    "processing_time": processing_time
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to process prompt {i}: {e}")
+                results.append({
+                    "prompt": prompt,
+                    "response": f"Error: {str(e)}",
+                    "tokens": 0,
+                    "processing_time": 0.001
+                })
         
         return results
     

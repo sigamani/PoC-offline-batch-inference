@@ -12,8 +12,8 @@ services:
       dockerfile: docker/Dockerfile.api
     environment:
       - RAY_BACKEND=log
-      - ENVIRONMENT=DEV
-      - GPU_AVAILABLE=false
+      - ENVIRONMENT=STAGE
+      - GPU_AVAILABLE=true
     working_dir: /app
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
     ports:
@@ -28,10 +28,10 @@ services:
       dockerfile: docker/Dockerfile.vllm
     environment:
       - RAY_BACKEND=log
-      - ENVIRONMENT=DEV
+      - ENVIRONMENT=STAGE
       - GPU_AVAILABLE=true 
     working_dir: /app
-    command: vllm serve Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --port 8001
+    
     ports:
       - "8001:8001"
     volumes:
@@ -43,7 +43,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: all
               capabilities: [gpu]
 volumes:
   batch_storage:
