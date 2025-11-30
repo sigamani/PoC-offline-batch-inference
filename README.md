@@ -252,12 +252,12 @@ Then repeat the steps from the CURL request above. Also swagger docs are availab
 
 This PoC mirrors the architecture patterns observed in modern repositories:
 
-| Trend (GitHub)                          | PoC Alignment                          |
+| Trend                                   | PoC Alignment                          |
 | --------------------------------------- | -------------------------------------- |
 | FastAPI control plane                   | Yes                                    |
 | Queue + Worker batching model           | Yes (in-memory queue)                  |
 | vLLM or TGI as engine                   | vLLM                                   |
-| Ray/TensorRT-LLM/Triton for production  | Ray Data in PoC, Triton noted for prod |
+| Ray/TensorRT-LLM/Triton for production  | Ray Data                               |
 | OpenAI-style job lifecycle              | Yes                                    |
 | SLA-aware job metadata                  | Yes (mocked)                           |
 | Resource pool scheduling                | Yes (mocked spot/dedicated)            |
