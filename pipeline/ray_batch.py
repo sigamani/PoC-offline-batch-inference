@@ -6,7 +6,7 @@ sys.path.insert(0, project_root)
 import logging
 import time
 from typing import List, Dict, Any
-from pipeline.config import EnvironmentConfig, ModelConfig
+from config import EnvironmentConfig, ModelConfig
 from pipeline.ray_utils import create_dataset
 from pipeline.inference import create_mock_result
 logger = logging.getLogger(__name__)
@@ -19,16 +19,13 @@ class RayBatchProcessor:
         self.vllm_engine = None
         
         if env_config.is_gpu_available and not env_config.is_dev:
-            # STAGE with GPU - use real vLLM
             self._init_vllm_engine()
             logger.info("STAGE: Using real vLLM engine")
         else:
-            # DEV or no GPU - use mock
             self.processor = None
             logger.info("DEV: Using mock Ray Data processor")
     
     def _init_vllm_engine(self):
-        """Initialize real vLLM engine"""
         try:
             from vllm import LLM, SamplingParams
             
@@ -84,7 +81,6 @@ class RayBatchProcessor:
         return results
     
     def _execute_batch_processing(self, prompts: List[str]) -> List[Dict[str, Any]]:
-        """Execute batch using Ray Data with mock inference"""
         ds = create_dataset(prompts)
         logger.info(f"Created dataset with {ds.count()} samples")
         return self._process_with_mock(ds)
@@ -93,20 +89,16 @@ class RayBatchProcessor:
         logger.info("Using Ray Data map_batches with mock inference")
         def process_batch_with_mock(batch, is_dev):
             results = []
-            # Handle Ray Data batch format - it's a dict with numpy arrays
             if isinstance(batch, dict) and 'prompt' in batch:
                 prompts = batch['prompt']
-                # Handle numpy array or list of prompts
                 if hasattr(prompts, '__iter__') and not isinstance(prompts, str):
                     for prompt in prompts:
                         result = create_mock_result(str(prompt), is_dev)
                         results.append(result.to_dict())
                 else:
-                    # Single prompt
                     result = create_mock_result(str(prompts), is_dev)
                     results.append(result.to_dict())
             else:
-                # Fallback for other batch formats
                 for item in batch:
                     if hasattr(item, 'get'):
                         prompt = item.get('prompt', str(item))
@@ -114,14 +106,12 @@ class RayBatchProcessor:
                         prompt = str(item)
                     result = create_mock_result(prompt, is_dev)
                     results.append(result.to_dict())
-            # Ray 2.5+ requires returning named dict field
             return {"results": results}
         
         batch_fn = lambda batch: process_batch_with_mock(batch, self.env_config.is_dev)
         processed_ds = ds.map_batches(batch_fn, batch_size=self.model_config.batch_size)
         batches = processed_ds.take_all()
         
-        # Collect results from batches
         all_results = []
         for batch in batches:
             if isinstance(batch, dict) and 'results' in batch:

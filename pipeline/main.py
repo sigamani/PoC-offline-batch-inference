@@ -1,5 +1,5 @@
 import logging
-from .config import EnvironmentConfig, ModelConfig
+from ..config import EnvironmentConfig, ModelConfig
 from .ray_batch import RayBatchProcessor
 
 logging.basicConfig(level=logging.INFO)

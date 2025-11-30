@@ -1,9 +1,13 @@
 import sys
 import os
-# Add project root to path for both standalone and module execution
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
+from config import EnvironmentConfig, ModelConfig
+
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 import logging
 import time
@@ -17,7 +21,7 @@ from api.models import BatchRequest, BatchResponse, OpenAIBatchRequest, OpenAIBa
 
 logger = logging.getLogger(__name__)
 
-from pipeline.config import EnvironmentConfig, ModelConfig
+from config import EnvironmentConfig, ModelConfig
 from pipeline.ray_batch import RayBatchProcessor
 
 env_config = EnvironmentConfig.from_env()
@@ -50,7 +54,7 @@ app = FastAPI(
 )
 
 
-BATCH_DIR = "/tmp"
+BATCH_DIR = config.batch.batch_dir
    
 def calculate_priority(created_at: float, num_prompts: int, deadline_hours: float = 24.0) -> priorityLevels:
     """
@@ -99,6 +103,56 @@ async def debug_worker():
         "worker_thread_alive": batch_worker.worker_thread.is_alive() if 'batch_worker' in globals() and batch_worker.worker_thread else False
     }
 
+@app.get("/debug/gpu-pools")
+async def debug_gpu_pools():
+    """Debug endpoint to check GPU pool status"""
+    if 'batch_worker' in globals():
+        return batch_worker.gpu_scheduler.get_pool_status()
+    else:
+        return {"error": "Worker not initialized"}
+
+from fastapi import UploadFile, File
+import aiofiles
+@app.post("/v1/files")
+async def upload_file(file: UploadFile = File(...)):
+    
+    if not file.filename.endswith('.jsonl'):
+        raise HTTPException(status_code=400, detail="Only .jsonl files are supported")
+    
+    try:
+        file_id = str(uuid.uuid4())[:12]
+        file_path = os.path.join(BATCH_DIR, f"{file_id}.jsonl")
+        
+        async with aiofiles.open(file_path, 'wb') as f:
+            content = await file.read()
+            await f.write(content)
+        
+        line_count = 0
+        async with aiofiles.open(file_path, 'r') as f:
+            async for line in f:
+                if line.strip():
+                    try:
+                        json.loads(line)
+                        line_count += 1
+                    except json.JSONDecodeError:
+                        raise HTTPException(status_code=400, detail="Invalid JSONL format")
+        
+        logger.info(f"Uploaded file {file.filename} as {file_id} with {line_count} lines")
+        
+        return {
+            "id": file_id,
+            "object": "file",
+            "filename": file.filename,
+            "created_at": int(time.time()),
+            "purpose": "batch",
+            "bytes": len(content),
+            "lines": line_count
+        }
+        
+    except Exception as e:
+        logger.error(f"File upload failed: {e}")
+        raise HTTPException(status_code=500, detail="File upload failed")
+     
 # ---------------------------
 # Endpoints
 # ---------------------------
@@ -123,14 +177,94 @@ async def generate_batch(request: BatchRequest):
         throughput=len(request.prompts)/total_time if total_time > 0 else 0
     )
 
+@app.get("/v1/batches")
+async def list_batches():
+    try:
+        batches = []
+        batch_files = []
+        
+        if os.path.exists(BATCH_DIR):
+            batch_files = [f for f in os.listdir(BATCH_DIR) if f.startswith("job_") and f.endswith(".json")]
+        
+        for batch_file in batch_files:
+            job_path = os.path.join(BATCH_DIR, batch_file)
+            try:
+                with open(job_path, "r") as f:
+                    job = json.load(f)
+                    batches.append({
+                        "id": job.get("id", "unknown"),
+                        "object": "batch",
+                        "created_at": job.get("created_at", 0),
+                        "completed_at": job.get("completed_at", 0),
+                        "status": job.get("status", "unknown"),
+                        "total_prompts": job.get("num_prompts", 0),
+                        "model": job.get("model", "unknown")
+                    })
+            except Exception as e:
+                logger.error(f"Failed to read batch file {batch_file}: {e}")
+                continue
+        
+        return {"object": "list", "data": batches}
+        
+    except Exception as e:
+        logger.error(f"Failed to list batches: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list batches")
+
+@app.post("/v1/batches/{batch_id}/cancel")
+async def cancel_batch(batch_id: str):
+    job_path = os.path.join(BATCH_DIR, f"job_{batch_id}.json")
+    
+    try:
+        if not os.path.exists(job_path):
+            raise HTTPException(status_code=404, detail="Batch not found")
+        
+        with open(job_path, "r") as f:
+            job = json.load(f)
+        
+        current_status = job.get("status", "unknown")
+        
+        if current_status in ["running", "completed", "failed", "cancelled"]:
+            return {
+                "id": job.get("id", batch_id),
+                "object": "batch",
+                "created_at": job.get("created_at", 0),
+                "completed_at": job.get("completed_at", 0),
+                "status": current_status,
+                "error": f"Cannot cancel batch in '{current_status}' status"
+            }
+        
+        job["status"] = "cancelled"
+        job["completed_at"] = time.time()
+        
+        if 'batch_worker' in globals():        
+            logger.info(f"Cancelling batch {batch_id}")
+        
+        with open(job_path, "w") as f:
+            json.dump(job, f, indent=2)
+        
+        logger.info(f"Batch {batch_id} cancelled successfully")
+        
+        return {
+            "id": job.get("id", batch_id),
+            "object": "batch",
+            "created_at": job.get("created_at", 0),
+            "completed_at": job.get("completed_at"),
+            "status": "cancelled"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to cancel batch {batch_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to cancel batch")
+        
 @app.post("/v1/batches", response_model=OpenAIBatchResponse)
 async def create_openai_batch(request: OpenAIBatchRequest):
     try:
         prompts = [item.get("prompt", "") for item in request.input]
         created_at = float(time.time())
-        batch_id = str(uuid.uuid4())[:12]  # Short ID for filename
+        batch_id = str(uuid.uuid4())[:12]  
         
-        # Create job metadata file
         job_data = {
             "id": batch_id,
             "model": request.model,

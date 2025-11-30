@@ -1,35 +1,40 @@
 import sys
+import sys
 import os
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
+from config import config as app_config
+from config import EnvironmentConfig, ModelConfig
 
 from api.job_queue import SimpleQueue
-from api.models import priorityLevels
-from pipeline.config import ModelConfig, EnvironmentConfig
+from config import ModelConfig, EnvironmentConfig
 from pipeline.ray_batch import RayBatchProcessor
+from api.gpu_scheduler import MockGPUScheduler
 
 import logging
 import time
-import json
+
 import threading
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any
+
 
 logger = logging.getLogger(__name__)
 
 class BatchWorker:
-    
-    def __init__(self, queue: SimpleQueue, batch_dir: str = "/tmp"):
+    def __init__(self, queue: SimpleQueue, batch_dir: str = None):
         self.queue = queue
-        self.batch_dir = batch_dir
+        self.batch_dir = batch_dir or DEFAULT_BATCH_DIR
         self.pipeline = RayBatchProcessor(
             ModelConfig.default(), 
             EnvironmentConfig.from_env()
         )
         self.running = False
         self.worker_thread = None
-        
+        self.gpu_scheduler = MockGPUScheduler()
+
     def start(self):
         if self.running:
             logger.warning("Worker is already running")
@@ -46,7 +51,7 @@ class BatchWorker:
             self.worker_thread.join(timeout=5.0)
         logger.info("Batch worker stopped")
         
-    def _worker_loop(self):
+    def _worker_loop(self) -> None:
         logger.info("Worker loop started")
         while self.running:
             try:
@@ -64,7 +69,7 @@ class BatchWorker:
                 logger.error(f"Worker loop error: {e}")
                 time.sleep(1.0)  
 
-    def _process_job(self, job_data: Dict[str, Any]):
+    def _process_job(self, job_data: Dict[str, Any]) -> None:
         job_id = job_data.get("job_id")
         input_file = job_data.get("input_file")
         output_file = job_data.get("output_file")
@@ -73,6 +78,12 @@ class BatchWorker:
             raise ValueError(f"Missing required job data: job_id={job_id}, input_file={input_file}, output_file={output_file}")
         
         try:
+            allocation_result = self.gpu_scheduler.allocate_gpu(job_id, priority_level=1)
+            if not allocation_result.allocated:
+                logger.error(f"Failed to allocate GPU for job {job_id}: {allocation_result.reason}")
+                self._update_job_status(job_id, "failed", completed_at=time.time())
+                return
+            
             logger.info(f"Processing job {job_id}")
             self._update_job_status(job_id, "running")            
             logger.info(f"Loading prompts from {input_file}")
@@ -122,12 +133,12 @@ class BatchWorker:
             self._save_results(output_file, results)
             
             self._update_job_status(job_id, "completed", completed_at=time.time())
-            
+            self.gpu_scheduler.release_gpu(job_id)
             
         except Exception as e:
-            logger.error(f"❌ Job {job_id} failed: {e}")
+            logger.error(f"Job {job_id} failed: {e}")
             import traceback
-            traceback.print_exc()
+            logger.error(f"Traceback: {traceback.format_exc()}")
             
             error_file = job_data.get("error_file", "").replace("/tmp/", "/tmp/")
             with open(error_file, "w") as f:
@@ -135,7 +146,8 @@ class BatchWorker:
                 f.write("\n")
             
             self._update_job_status(job_id, "failed", completed_at=time.time())
-        
+            self.gpu_scheduler.release_gpu(job_id)
+
     def _load_prompts(self, input_file: str) -> List[str]:
         prompts = []
         with open(input_file, 'r') as f:
@@ -145,7 +157,7 @@ class BatchWorker:
                     prompts.append(data.get("prompt", ""))
         return prompts
         
-    def _save_results(self, output_file: str, results: List[Dict[str, Any]]):
+    def _save_results(self, output_file: str, results: List[Dict[str, Any]]) -> None:
         with open(output_file, 'w') as f:
             for result in results:
                 json.dump(result, f)
@@ -220,11 +232,11 @@ if __name__ == "__main__":
         worker._process_job(job_payload)
         
         if os.path.exists(output_file):
-            print("Output file created")
+            logger.info("Output file created")
             with open(output_file, 'r') as f:
                 results = [json.loads(line) for line in f if line.strip()]
-                print(f"   Generated {len(results)} results")
-                for i, result in enumerate(results[:2]):  # Show first 2
+                logger.info(f"Generated {len(results)} results")
+                for i, result in enumerate(results[:2]):  
                     print(f"   {i+1}. {result}...")
         
         with open(job_file, 'r') as f:
