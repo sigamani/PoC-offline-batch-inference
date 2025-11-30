@@ -129,6 +129,7 @@ class BatchWorker:
             
             logger.info(f"Saving results to {output_file}")
             self._save_results(output_file, results)
+                    except Exception as e:
             
             self._update_job_status(job_id, "completed", completed_at=time.time())
             self.gpu_scheduler.release_gpu(job_id)

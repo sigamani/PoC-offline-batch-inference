@@ -73,7 +73,8 @@ class RayBatchProcessor:
                         "max_tokens": self.model_config.max_tokens,
                         "temperature": self.model_config.temperature
                     },
-                    timeout=30
+                    timeout=10,
+                    headers={"Content-Type": "application/json"}
                 )
                 
                 if response.status_code == 200:
