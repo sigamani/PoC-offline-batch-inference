@@ -176,9 +176,14 @@ curl http://localhost:8000/v1/batches/{batch_id}
 # There will be an input and output file.
 
 # For an actual STAGE test of the full pipeline run this:
+
+## Option 1: Build locally
 cd docker
 bash setup.sh
 docker compose -f docker/docker-compose.yaml up --build
+
+## Option 2: Use pre-built images (faster)
+docker compose -f docker/docker-compose.yaml up
 
 Then repeat the steps from the CURL request above.
 ```

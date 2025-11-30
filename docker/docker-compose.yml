@@ -6,6 +6,7 @@
 
 services:
   api:
+    image: michaelsigamani/proj-grounded-telescopes:api-0.1.0
     build:
       context: ..
       dockerfile: docker/Dockerfile.api
@@ -22,6 +23,7 @@ services:
         - ../pipeline:/app/pipeline
         - batch_storage:/tmp
   vllm:
+    image: michaelsigamani/proj-grounded-telescopes:vllm-0.1.0
     build:
       context: ..
       dockerfile: docker/Dockerfile.vllm
@@ -47,6 +49,7 @@ services:
               capabilities: [gpu]
 
   metrics:
+    image: michaelsigamani/proj-grounded-telescopes:api-0.1.0
     build:
       context: ..
       dockerfile: docker/Dockerfile.api
