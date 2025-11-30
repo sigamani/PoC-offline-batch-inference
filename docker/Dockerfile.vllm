@@ -21,5 +21,4 @@ USER appuser
 
 EXPOSE 8001
 
-# Use the default entrypoint from the base image, just override the command
 CMD ["--model", "/app/models/Qwen2.5-0.5B-Instruct", "--host", "0.0.0.0", "--port", "8001", "--max-model-len", "2048", "--gpu-memory-utilization", "0.8"]

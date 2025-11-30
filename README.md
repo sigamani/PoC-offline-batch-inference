@@ -89,7 +89,7 @@ This PoC tries to aligns with these trends. In terms of how we can think about m
                   ┌─────────▼─────────┐
                   │   In-Memory Queue │
                   │   (collections.deque)
-                  │  + job metadata    │
+                  │  + job metadata   │
                   └─────────┬─────────┘
                             │
                 background worker thread
@@ -111,9 +111,30 @@ This PoC tries to aligns with these trends. In terms of how we can think about m
                             │
                 ┌───────────▼──────────┐
                 │      vLLM Engine      │
-                │   (Qwen2.5 0.5B/7B)   │
+                │   (Qwen2.5-0.5B)   │
                 └────────────────────────┘
 ```
+
+# Staging Metrics with vLLM & RayData
+
+## API Performance Metrics
+
+* **Success Rate:** 100.0%
+* **Average Latency:** 395.1 ms
+* **P50 Latency:** 386.7 ms
+* **P95 Latency:** 411.9 ms
+* **Min/Max Latency:** 386.7 ms – 411.9 ms
+* **Throughput:** 165.07 tokens/sec, 7.28 requests/sec
+* **Avg Tokens per Request:** 22.7 tokens
+
+## vLLM Internal Metrics
+
+* **KV Cache Usage:** 0.001%
+* **Memory Usage:** 903.1 MB
+* **Queue Depth:** 0 running, 0 waiting
+* **Total Tokens Processed:** 4,618 (648 prompt + 3,970 generation)
+* **Cache Hit Rate:** 0.0%
+
 
 ## Getting Started
 
