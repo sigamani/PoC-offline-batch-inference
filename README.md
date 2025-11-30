@@ -1,4 +1,4 @@
-# 🌐 **Offline Batch Inference (OpenAI-Style)**  
+# 🌐 **Offline Batch Inference**  
 
 ## Overview
 
