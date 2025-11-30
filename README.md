@@ -12,7 +12,7 @@ behaviour. I chose the following components:
 RayCore is widely used for distributed Python data
 processing. Ray Data recently added native map-style batch transforms
 and LLM engine integration (vLLM, SGLang). This PoC evaluates how
-practical these new features are in real usage.
+practical these new features are when integrating with actual buisness use cases.
 
 ### **<span style="color:#9B59B6;">vLLM (0.10.0)</span>** 
 Industry default for high-throughput, Python-native LLM
