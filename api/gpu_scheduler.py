@@ -69,7 +69,7 @@ class MockGPUScheduler:
             return AllocationResult(
                 pool_type=PoolType.SPOT,
                 allocated=False,
-                reason=f"No resources available, queued at position {queue_pos} (priority: {priority_level})",
+                reason=f"No resources available, queued at position {queue_pos} (priority: {priority_level.name})",
                 wait_time=time.time() - start_time,
                 queue_position=queue_pos
             )
