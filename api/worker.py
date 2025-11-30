@@ -2,11 +2,13 @@ import sys
 import sys
 import os
 
+from regex import B
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
-from config import config as app_config
-from config import EnvironmentConfig, ModelConfig
+
+from config import BatchConfig, EnvironmentConfig, ModelConfig
 
 from api.job_queue import SimpleQueue
 from config import ModelConfig, EnvironmentConfig
@@ -18,7 +20,8 @@ import time
 
 import threading
 import os
-from typing import Dict, Any
+import json
+from typing import Dict, Any, List
 
 
 logger = logging.getLogger(__name__)
@@ -26,7 +29,7 @@ logger = logging.getLogger(__name__)
 class BatchWorker:
     def __init__(self, queue: SimpleQueue, batch_dir: str = None):
         self.queue = queue
-        self.batch_dir = batch_dir or DEFAULT_BATCH_DIR
+        self.batch_dir = BatchConfig().batch_dir if batch_dir is None else batch_dir
         self.pipeline = RayBatchProcessor(
             ModelConfig.default(), 
             EnvironmentConfig.from_env()

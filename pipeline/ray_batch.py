@@ -7,10 +7,10 @@ import logging
 import time
 from typing import List, Dict, Any
 from config import EnvironmentConfig, ModelConfig
-from pipeline.ray_utils import create_dataset
-from pipeline.inference import create_mock_result
 logger = logging.getLogger(__name__)
 
+from config import EnvironmentConfig, ModelConfig
+from pipeline.inference import create_dataset, create_mock_result
 
 class RayBatchProcessor:
     def __init__(self, model_config: ModelConfig, env_config: EnvironmentConfig):

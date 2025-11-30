@@ -1,13 +1,11 @@
 import sys
 import os
+
+import config
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
-from config import EnvironmentConfig, ModelConfig
-
-import os
-from dotenv import load_dotenv
-load_dotenv()
+from config import EnvironmentConfig, ModelConfig, BatchConfig
 
 import logging
 import time
@@ -54,7 +52,8 @@ app = FastAPI(
 )
 
 
-BATCH_DIR = config.batch.batch_dir
+batch_config = BatchConfig()
+BATCH_DIR = batch_config.batch_dir
    
 def calculate_priority(created_at: float, num_prompts: int, deadline_hours: float = 24.0) -> priorityLevels:
     """

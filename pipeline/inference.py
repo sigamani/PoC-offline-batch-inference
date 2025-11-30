@@ -5,7 +5,23 @@ project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
 from pipeline.models import InferenceResult
+import logging
+logger = logging.getLogger(__name__)
 
+import ray
+import pandas as pd
+from typing import List
+def create_dataset(prompts: List[str]):
+    """Create a Ray Dataset from prompts"""
+    try:
+        data = [{"prompt": prompt} for prompt in prompts]
+        df = pd.DataFrame(data)
+        ds = ray.data.from_pandas(df)
+        logger.info(f"Created Ray dataset with {len(prompts)} samples")
+        return ds
+    except Exception as e:
+        logger.error(f"Failed to create dataset: {e}")
+        return prompts
 
 def generate_mock_response(prompt: str, is_dev: bool) -> str:
     if is_dev:
