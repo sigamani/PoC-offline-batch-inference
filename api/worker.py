@@ -23,7 +23,6 @@ import os
 import json
 from typing import Dict, Any, List
 
-
 logger = logging.getLogger(__name__)
 
 class BatchWorker:

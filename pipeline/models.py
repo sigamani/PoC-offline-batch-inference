@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pydantic import BaseModel
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 @dataclass
 class InferenceRequest:
@@ -26,7 +26,7 @@ class InferenceResult:
     
 class OpenAIBatchRequest(BaseModel):
     model: str = "Qwen/Qwen2.5-0.5B-Instruct"
-    input: List[Dict[str, str]] = None  # Make optional
-    input_file_id: str = None  # New field for file reference
+    input: List[Dict[str, str]] = None 
+    input_file_id: str = None  
     max_tokens: int = 256
     temperature: float = 0.7

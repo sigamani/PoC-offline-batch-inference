@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 import ray
 import pandas as pd
 from typing import List
+
 def create_dataset(prompts: List[str]):
-    """Create a Ray Dataset from prompts"""
     try:
         data = [{"prompt": prompt} for prompt in prompts]
         df = pd.DataFrame(data)

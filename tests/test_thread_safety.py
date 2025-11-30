@@ -197,10 +197,8 @@ class TestThreadSafety:
                     os.remove(test_file)
     
     def test_concurrent_api_calls(self):
-        """Test API endpoints with concurrent requests."""
         import requests
         import subprocess
-        import tempfile
         
         env = os.environ.copy()
         env["ENVIRONMENT"] = "DEV"
@@ -243,7 +241,6 @@ class TestThreadSafety:
             server_process.wait(timeout=5)
 
 class TestRaceConditions:
-    
     @pytest.fixture
     def queue(self):
         """Fresh queue for each test."""

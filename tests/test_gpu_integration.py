@@ -51,20 +51,17 @@ class TestGPUIntegration:
         assert msg_id is not None
         
         worker.start()
-        time.sleep(0.1)  # Check very soon after starting while job should still be processing
+        time.sleep(0.1)  
         
         print(f"DEBUG: Scheduler allocations: {scheduler.allocations}")
         print(f"DEBUG: Pool status: {scheduler.get_pool_status()}")
         
-        # Now check that GPU is allocated while job is processing
         allocation = scheduler.get_job_allocation("gpu_test_job")
         assert allocation is not None, f"GPU should be allocated while job is processing. Got: {allocation}"
         assert allocation == PoolType.DEDICATED, "High priority job should get dedicated GPU"
         
-        # Wait for job to complete
         time.sleep(2.0)
         
-        # Check that job completed successfully
         job_file = f"{worker.batch_dir}/job_gpu_test_job.json"
         assert os.path.exists(job_file), "Job file should exist"
         
@@ -73,7 +70,6 @@ class TestGPUIntegration:
         
         assert job_data["status"] == "completed", f"Job should be completed, got status: {job_data['status']}"
         
-        # Check that output file was created
         assert os.path.exists(f"{worker.batch_dir}/gpu_output.jsonl"), "Output file should exist"
     
     def test_gpu_exhaustion_handling(self, worker, queue, scheduler):
@@ -103,18 +99,14 @@ class TestGPUIntegration:
         queue.enqueue(test_job_data, priorityLevels.LOW)
         
         worker.start()
-        time.sleep(1.0)  # Check while jobs are processing
+        time.sleep(1.0)  
         
-        # At this point, 1 spot GPU should be allocated (worker processes sequentially)
         allocations = scheduler.allocations
         spot_allocated = sum(1 for pool in allocations.values() if pool == PoolType.SPOT)
         assert spot_allocated == 1, f"Expected 1 spot GPU allocated, got {spot_allocated}"
-        # The other jobs should still be in queue or waiting to be processed
         
-        # Wait for jobs to complete
-        time.sleep(8.0)  # Give enough time for all jobs to process
+        time.sleep(8.0)  
         
-        # Check that some jobs completed successfully by looking for output files
         output_files = [f for f in os.listdir(worker.batch_dir) if f.endswith("_output.jsonl")]
         assert len(output_files) > 0, "At least some jobs should have completed and created output files"
         

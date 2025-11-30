@@ -91,7 +91,6 @@ class TestMockGPUScheduler:
         assert 0 <= metrics["utilization_rate"] <= 1
 
 class TestStressScenarios:
-    
     def setup_method(self):
         self.scheduler = MockGPUScheduler(spot_capacity=3, dedicated_capacity=2)
     

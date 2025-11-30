@@ -192,7 +192,6 @@ class TestSimpleQueue:
         assert queue.get_depth() == 3
 
     def test_queue_depth_tracking(self, queue, sample_payload):
-        """Test queue depth tracking accuracy."""
         assert queue.get_depth() == 0
         
         for i in range(5):

@@ -28,9 +28,7 @@ class RayBatchProcessor:
             logger.info("DEV: Using mock Ray Data processor")
     
     def _init_vllm_engine(self):
-        try:
-            import requests
-            
+        try:            
             self.vllm_api_url = "http://vllm:8001/v1/completions"
             self.vllm_engine = True  
             
@@ -54,7 +52,6 @@ class RayBatchProcessor:
             return self._fallback_process(prompts)
     
     def _execute_vllm_batch(self, prompts: List[str]) -> List[Dict[str, Any]]:
-        """Execute batch using real vLLM HTTP API"""
         logger.info(f"Processing {len(prompts)} prompts with vLLM HTTP API")
         
         results = []
@@ -109,7 +106,6 @@ class RayBatchProcessor:
                     "tokens": 0,
                     "processing_time": 0.001
                 })
-        
         return results
     
     def _execute_batch_processing(self, prompts: List[str]) -> List[Dict[str, Any]]:
@@ -118,7 +114,6 @@ class RayBatchProcessor:
     
     def _fallback_process(self, prompts: List[str]) -> List[Dict[str, Any]]:
         import time
-        """Simulate processing delay and return mock results"""
         time.sleep(0.5)  
         results = [create_mock_result(p, self.env_config.is_dev) for p in prompts]
         return [r.to_dict() for r in results]

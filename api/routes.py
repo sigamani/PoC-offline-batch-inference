@@ -53,13 +53,12 @@ app = FastAPI(
     description="Minimal batch inference PoC"
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"], 
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"], 
+    allow_headers=["*"],  
 )
 
 
@@ -69,14 +68,8 @@ BATCH_DIR = batch_config.batch_dir
 def calculate_priority(created_at: float, num_prompts: int, deadline_hours: float = 24.0) -> priorityLevels:
     """
     Calculate the priority of a task based on its creation time, number of prompts, and deadline.
-    
-    Priority levels:
-    - LOW: Normal priority
-    - HIGH: Urgent priority
-    
-    A job gets HIGH priority if:
-    - Less than 4 hours remaining until deadline, OR
-    - Large job (> 100 prompts) with less than 12 hours remaining
+    A job gets HIGH priority if it's less than 4 hours remaining until deadline, OR IS
+    Large job (> 100 prompts) with less than 12 hours remaining
     """
     import time
     current_time = time.time()
@@ -89,7 +82,6 @@ def calculate_priority(created_at: float, num_prompts: int, deadline_hours: floa
     else:
         return priorityLevels.LOW
     
-
 async def execute_batch_async(prompts: List[str]) -> List[Dict[str, Any]]:
     loop = None
     try:
@@ -121,7 +113,6 @@ async def debug_gpu_pools():
     else:
         return {"error": "Worker not initialized"}
 
-     
 # ---------------------------
 # Endpoints
 # ---------------------------
@@ -224,9 +215,7 @@ async def create_openai_batch(request: OpenAIBatchRequest):
             "temperature": request.temperature,
             "error_file": os.path.join(BATCH_DIR, f"{batch_id}_errors.jsonl")
         }
-        
-        msg_id = job_queue.enqueue(job_payload, priority=priority)
-        
+                
         return OpenAIBatchResponse(
             id=batch_id,
             object="batch",

@@ -13,7 +13,6 @@ sys.path.insert(0, str(project_root))
 
 @pytest.fixture(scope="module")
 def server_url():
-    """Start FastAPI server and return URL"""
     import subprocess
     
     env = os.environ.copy()
@@ -41,8 +40,8 @@ def server_url():
     
     server_process.terminate()
     server_process.wait(timeout=5)
+
 def test_batch_creation(server_url):
-    """Test creating a batch via POST request"""
     test_data = {
         "model": "Qwen/Qwen2.5-0.5B-Instruct",
         "input": [
@@ -91,7 +90,6 @@ def test_batch_creation(server_url):
     assert "Hello world" in prompts
 
 def test_batch_list(server_url):
-    """Test listing batches"""
     response = requests.get(f"{server_url}/v1/batches")
     assert response.status_code == 200
     
@@ -101,7 +99,6 @@ def test_batch_list(server_url):
     assert isinstance(result["data"], list)
 
 def test_health_check(server_url):
-    """Test health check endpoint"""
     response = requests.get(f"{server_url}/")
     assert response.status_code == 200
     
