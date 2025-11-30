@@ -35,8 +35,6 @@ The [docker](https://github.com/sigamani/PoC-offline-batch-inference/tree/main/d
 Validated using low-cost GPU nodes on Vast.ai but
 compatible with any NVIDIA-equipped machine.
 
-Lastly, in production I would consider using Redis, Redis Streams, Celery, or Kafka.
-
 ---
 <details>
 <summary><strong> 1. Research with Perplexity Search </strong></summary>
