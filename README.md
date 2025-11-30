@@ -60,7 +60,6 @@ Two patterns dominate:
 
 * Use of **map-style batch transforms** (Ray, Spark, TGI batch API, TensorRT-LLM batch scheduler)
 * OpenAI-style patterns around:
-  * upload file  
   * create batch job  
   * poll job status  
   * retrieve results  
@@ -68,7 +67,7 @@ Two patterns dominate:
 * Separation between **control plane** (HTTP API) and **execution layer** (Ray/vLLM/Triton)
 * PoCs avoid Redis, Celery, Kafka, etc.; they use local queues or in-memory runners
 
-This PoC aligns with these trends.
+This PoC tries to aligns with these trends. In terms of how we can think about making the server more novel there are a few ideas I had which we can discuss.
 
 </details>
 
@@ -131,12 +130,13 @@ cd PoC-offline-batch-inference
 docker-compose up
 
 # Submit a batch job (example)
-curl -X POST http://localhost:8000/v1/batches \
-  -H "Content-Type: application/json" \
-  -d @examples/sample_batch.jsonl
+curl -X POST http://localhost:8000/v1/batches -H "Content-Type: application/json" -d '{"model":"Qwen/Qwen2.5-0.5B-Instruct","input":[{"prompt":"What is 2+2?"},{"prompt":"Hello world"}],"max_tokens":50}'
 
 # Check job status
 curl http://localhost:8000/v1/batches/{batch_id}
+
+# Then have a look in /tmp/{batch_id} to see the output of the job 
+# There will be an input and output file.
 ```
 </details>
 
@@ -242,6 +242,8 @@ gpu_pool = {
 
 ## 4.2 Out of Scope
 
+* file upload via API /upload endpoint
+* batch cancel functionality 
 * Distributed multi-node Ray cluster
 * Real GPU scheduling, placement, or hardware management
 * Autoscaling based on load or spot availability
