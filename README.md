@@ -25,9 +25,10 @@ Fast, minimal, and ideal for PoC iteration. Swagger UI improves
 ease of validation across teams.
 
 ### **<span style="color:#E74C3C;">collections.deque</span>** 
-I intentionally avoided Redis at this stage. Using
-Redis would introduce tuning and operational variables unrelated to
-validating the core queuing logic. For transparency and simplicity: -
+I intentionally avoided Redis (and all DB integration) at this stage. 
+For me, database integration would have come with a lot of operational complexity
+with minimal payoff at this stage. Since I considered it more important to
+validate the core queuing logic. For transparency and simplicity: -
 Used Python’s native deque - Implemented FIFO - Avoided hiding behaviour
 behind external systems
 
