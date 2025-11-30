@@ -40,32 +40,8 @@ real model - Keep staging under 24 GiB VRAM using Qwen2.5-0.5B. For production: 
 Lastly, in production I would consider using Redis, Redis Streams, Celery, or Kafka.
 
 ---
-
-### **<span style="color:#3498DB;">Docker + Docker Compose</span>**
-
-The `docker/` directory contains the full staging environment.
-This was validated using **low-cost GPU nodes on Vast.ai**, but works on any NVIDIA-equipped machine.
-
-Primary goals:
-
-* Integrate **vllm==0.10.0** with
-  **FastAPI + Ray Data 2.49.1**
-* Test the full pipeline using a real model
-* Keep staging VRAM < 24 GiB by choosing **Qwen2.5-0.5B**
-* Ensure the architecture is portable to stronger hardware (A100/H100/L40)
-
-For production, orchestration should move to **Kubernetes or KubeRay**, not Docker Compose.
-
----
-
-These components can all be swapped for production-grade equivalents if evolving this PoC into a full deployment.
-
----
-
-
----
 <details>
-<summary><strong> 1. Implementation Research </strong></summary>
+<summary><strong> 1. Research with Perplexity Search </strong></summary>
 
 <br>
 
@@ -76,7 +52,7 @@ These components can all be swapped for production-grade equivalents if evolving
 Derived from analysis of public GitHub repositories and industry examples ([See Key References](#9-key-references), [Perplexity Source](https://www.perplexity.ai/search/i-would-like-you-to-do-a-searc-fEcCNnmhT6.ER1VsjlcwfA?preview=1#0)).
 
 
-## 1.1 Engines
+## 1.1 LLM Engines
 
 Recent open-source repositories cluster around:
 
@@ -85,7 +61,7 @@ Recent open-source repositories cluster around:
 * **HuggingFace TGI** – standardized server with continuous batching & token limits
 * **llama.cpp** – CPU/edge-optimized; sometimes used for PoCs or offline evaluation
 
-## 1.2 Model Servers / Serving Layers
+## 1.2 LLM Servers
 
 Typical choices:
 
@@ -112,7 +88,8 @@ Two patterns dominate:
 * Separation between **control plane** (HTTP API) and **execution layer** (Ray/vLLM/Triton)
 * PoCs avoid Redis, Celery, Kafka, etc.; they use local queues or in-memory runners
 
-This PoC tries to aligns with these trends. In terms of how we can think about making the server more novel there are a few ideas I had which we can discuss.
+The research was essentially a sanity check making sure I wasn't proposing implementing something barbaric with
+no support from the wider community that would fall over in production. Since essentially I'm proposing something bleeding edge.
 
 </details>
 
