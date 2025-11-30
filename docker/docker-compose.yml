@@ -19,15 +19,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-        - type: bind
-          source: ../api
-          target: /app/api
-        - type: bind
-          source: ../pipeline
-          target: /app/pipeline
-        - type: volume
-          source: batch_storage
-          target: /tmp
+        - ../api:/app/api
+        - ../pipeline:/app/pipeline
+        - batch_storage:/tmp
   vllm:
     build:
       context: ..
@@ -41,15 +35,9 @@ services:
     ports:
       - "8001:8001"
     volumes:
-        - type: bind
-          source: ../api
-          target: /app/api
-        - type: bind
-          source: ../pipeline
-          target: /app/pipeline
-        - type: volume
-          source: batch_storage
-          target: /tmp
+        - ../api:/app/api
+        - ../pipeline:/app/pipeline
+        - batch_storage:/tmp
     deploy:
       resources:
         reservations:
