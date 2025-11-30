@@ -354,49 +354,7 @@ If taken beyond PoC:
 ---
 
 <details>
-<summary><strong> 7. Repo. Structure </strong></summary>
-
-<br>
-
-```
-repo/
-│
-├── api/
-│   ├── main.py              # FastAPI endpoints
-│   ├── models.py            # Pydantic models, job metadata
-│   ├── queue.py             # In-memory queue + worker
-│   └── scheduler.py         # Mocked GPU pool scheduler
-│
-├── engine/
-│   ├── vllm_runner.py       # vLLM interface
-│   └── model_config.yaml    # Model configuration
-│
-├── pipeline/
-│   └── ray_batch.py         # Ray Data batch pipeline
-│
-├── docker/
-│   ├── Dockerfile.api       # API service container
-│   ├── Dockerfile.vllm      # vLLM engine container
-│   └── docker-compose.yml   # Complete environment setup
-│
-├── examples/
-│   ├── sample_batch.jsonl   # Example batch input
-│   └── client_submit.ipynb  # Example client usage
-│
-├── tests/
-│   ├── test_api.py
-│   ├── test_scheduler.py
-│   └── test_pipeline.py
-│
-└── README.md
-```
-
-</details>
-
----
-
-<details>
-<summary><strong> 8. Deliverables </strong></summary>
+<summary><strong> 7. Deliverables </strong></summary>
 
 <br>
 
@@ -422,7 +380,7 @@ The PoC does **not** validate:
 ---
 
 <details>
-<summary><strong> 9. References </strong></summary>
+<summary><strong> 8. References </strong></summary>
 
 <br>
 
