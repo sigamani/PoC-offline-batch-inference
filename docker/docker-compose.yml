@@ -19,9 +19,15 @@ services:
     ports:
       - "8000:8000"
     volumes:
-        - ../api:/app/api:rw
-        - ../pipeline:/app/pipeline:rw
-        - batch_storage:/tmp
+        - type: bind
+          source: ../api
+          target: /app/api
+        - type: bind
+          source: ../pipeline
+          target: /app/pipeline
+        - type: volume
+          source: batch_storage
+          target: /tmp
   vllm:
     build:
       context: ..
@@ -31,13 +37,19 @@ services:
       - ENVIRONMENT=DEV
       - GPU_AVAILABLE=true 
     working_dir: /app
-    command: python -m vllm.entrypoints.openai.api_server --model Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --port 8001
+    command: vllm serve Qwen/Qwen2.5-0.5B-Instruct --host 0.0.0.0 --port 8001
     ports:
       - "8001:8001"
     volumes:
-        - ../api:/app/api:rw
-        - ../pipeline:/app/pipeline:rw
-        - batch_storage:/tmp
+        - type: bind
+          source: ../api
+          target: /app/api
+        - type: bind
+          source: ../pipeline
+          target: /app/pipeline
+        - type: volume
+          source: batch_storage
+          target: /tmp
     deploy:
       resources:
         reservations:
