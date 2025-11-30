@@ -2,7 +2,6 @@ FROM vllm/vllm-openai:v0.10.0
 
 WORKDIR /app
 
-# Install huggingface_hub and download model
 RUN pip install --no-cache-dir huggingface_hub
 
 RUN mkdir -p /app/models && \
@@ -22,5 +21,4 @@ USER appuser
 EXPOSE 8001
 EXPOSE 8002
 
-# Use the default entrypoint from the base image, just override the command
 CMD ["--model", "/app/models/Qwen2.5-0.5B-Instruct", "--host", "0.0.0.0", "--port", "8001", "--max-model-len", "1024", "--gpu-memory-utilization", "0.6", "--kv-cache-size", "0.1"]
