@@ -5,6 +5,7 @@ Includes resource constraints, cost tracking, and stress testing capabilities.
 
 import logging
 import time
+import threading
 from enum import Enum
 from dataclasses import dataclass
 from typing import Dict, Optional, List
@@ -54,6 +55,7 @@ class MockGPUScheduler:
         self.total_cost = 0.0
         self.rejected_jobs = 0
         self.total_allocations = 0 
+        self._lock = threading.Lock() 
         
     def allocate_gpu(self, job_id: str, priority_level) -> AllocationResult:
         start_time = time.time()
@@ -63,58 +65,56 @@ class MockGPUScheduler:
         elif not isinstance(priority_level, priorityLevels):
             priority_level = priorityLevels.LOW
         
-        logger.debug(f"allocate_gpu called with job_id={job_id}, priority={priority_level}")
+        with self._lock:  
+            logger.debug(f"allocate_gpu called with job_id={job_id}, priority={priority_level}")
+            
+            if self._no_resources_available():
+                logger.debug(f"No resources available, job {job_id} will be queued")
+                if priority_level == priorityLevels.HIGH:
+                    self.waiting_queue.insert(0, job_id)
+                    queue_pos = 1
+                else:
+                    self.waiting_queue.append(job_id)
+                    queue_pos = len(self.waiting_queue)
+                
+                logger.debug(f"Job {job_id} queued at position {queue_pos}")
+                
+                return AllocationResult(
+                    pool_type=PoolType.SPOT,
+                    allocated=False,
+                    reason=f"No resources available, queued at position {queue_pos} (priority: {priority_level.name})",
+                    wait_time=time.time() - start_time,
+                    queue_position=queue_pos
+                )
         
-        if self._no_resources_available():
-            logger.debug(f"No resources available, job {job_id} will be queued")
             if priority_level == priorityLevels.HIGH:
-                self.waiting_queue.insert(0, job_id)
-                queue_pos = 1
-            else:
-                self.waiting_queue.append(job_id)
-                queue_pos = len(self.waiting_queue)
-            
-            logger.debug(f"Job {job_id} queued at position {queue_pos}")
-            
-            return AllocationResult(
-                pool_type=PoolType.SPOT,
-                allocated=False,
-                reason=f"No resources available, queued at position {queue_pos} (priority: {priority_level.name})",
-                wait_time=time.time() - start_time,
-                queue_position=queue_pos
-            )
-        
-        if priority_level == priorityLevels.HIGH:
-            logger.debug(f"Allocating dedicated GPU for job {job_id}")
-            allocation = self._try_allocate_dedicated(job_id)
-            if not allocation.allocated:
-                logger.debug(f"Dedicated allocation failed, trying spot")
-                allocation = self._try_allocate_spot(job_id)
-        else:
-            logger.debug(f"Allocating spot GPU for job {job_id}")
-            allocation = self._try_allocate_spot(job_id)
-            if not allocation.allocated:
-                logger.debug(f"Spot allocation failed, trying dedicated for job {job_id}")
                 allocation = self._try_allocate_dedicated(job_id)
-        
-        if allocation.allocated:
-            logger.info(f"Allocated {allocation.pool_type.value} GPU for job {job_id} (priority: {priority_level.name})")
-            self.allocation_times[job_id] = time.time()
-            self.total_allocations += 1
-        else:
-            logger.debug(f"Allocation failed - {allocation.reason}")
-        
-        return allocation
+                if not allocation.allocated:
+                    allocation = self._try_allocate_spot(job_id)
+            else:
+                allocation = self._try_allocate_spot(job_id)
+                if not allocation.allocated:
+                    allocation = self._try_allocate_dedicated(job_id)
+            
+            if allocation.allocated:
+                logger.info(f"Allocated {allocation.pool_type.value} GPU for job {job_id} (priority: {priority_level.name})")
+                self.allocation_times[job_id] = time.time()
+                self.total_allocations += 1
+            else:
+                logger.debug(f"Allocation failed - {allocation.reason}")
+            
+            return allocation
     
     def release_gpu(self, job_id: str) -> None:
-        if job_id not in self.allocations:
-            logger.warning(f"Job {job_id} not found in allocations")
-            return
-            
-        pool_type = self.allocations.pop(job_id)
-        pool = self.pools[pool_type]
-        pool.available += 1
-        logger.info(f"Released {pool_type.value} GPU for job {job_id}")
+        with self._lock:  
+            if job_id not in self.allocations:
+                logger.warning(f"Job {job_id} not found in allocations")
+                return
+                
+            pool_type = self.allocations.pop(job_id)
+            pool = self.pools[pool_type]
+            pool.available += 1
+            logger.info(f"Released {pool_type.value} GPU for job {job_id}")
     
     def get_pool_status(self) -> Dict:
         return {
@@ -158,14 +158,13 @@ class MockGPUScheduler:
                 allocated=False,
                 reason="No spot instances available",
                 queue_position=0
-            )   
+            )
     
     def _try_allocate_dedicated(self, job_id: str) -> AllocationResult:
         dedicated_pool = self.pools[PoolType.DEDICATED]
         if dedicated_pool.available > 0:
             dedicated_pool.available -= 1
             self.allocations[job_id] = PoolType.DEDICATED
-
             return AllocationResult(
                 pool_type=PoolType.DEDICATED,
                 allocated=True,
