@@ -1,3 +1,5 @@
+"""Testing the first come first serve job queue logic and implementation."""
+
 import pytest
 import sys
 import os
@@ -223,9 +225,12 @@ class TestSimpleQueue:
     def test_queue_message_timestamps(self, queue, sample_payload):
         start_time = time.time()
         
-        msg_id = queue.enqueue(sample_payload, priorityLevels.HIGH)
-        
+        # Enqueue a message first
+        msg_id = queue.enqueue(sample_payload, priorityLevels.LOW)
+        assert msg_id is not None
+                
         messages = queue.dequeue(count=1)
+        assert len(messages) == 1
         msg = messages[0]
         
         assert msg.timestamp >= start_time

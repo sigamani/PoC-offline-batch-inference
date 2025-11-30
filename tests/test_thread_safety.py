@@ -1,4 +1,4 @@
-"""Testing RACE conditions and thread safety for batch processing service"""
+"""Testing race condition and thread safety guardrails """
 
 import pytest
 import time

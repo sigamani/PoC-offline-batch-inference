@@ -1,4 +1,4 @@
-""" Testing GPU allocation and scheduling integration """
+""" Testing the GPU allocation logic """
 
 import pytest
 import json
@@ -51,7 +51,7 @@ class TestGPUIntegration:
         assert msg_id is not None
         
         worker.start()
-        time.sleep(1.0)  # Check while job should still be processing
+        time.sleep(0.1)  # Check very soon after starting while job should still be processing
         
         print(f"DEBUG: Scheduler allocations: {scheduler.allocations}")
         print(f"DEBUG: Pool status: {scheduler.get_pool_status()}")

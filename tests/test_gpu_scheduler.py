@@ -1,4 +1,4 @@
-""" Testing the mock GPU scheduling functionality """
+""" Testing the mock GPU scheduling simulation logic """
 
 import sys
 import os
