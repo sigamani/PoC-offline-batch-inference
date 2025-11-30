@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.dev
 # Copy application code
 COPY api/ ./api/
 COPY pipeline/ ./pipeline/
+COPY config.py ./
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && \
