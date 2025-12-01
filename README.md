@@ -35,7 +35,8 @@ compatible with any NVIDIA-equipped machine.
 
 ---
 
-## Getting Started: Local build (no GPU/vllm mocked)
+## Getting Started: Local build  
+<span style="color: #777; font-size: 0.9em;">(no GPU / vLLM mocked)</span>
 
 1. **Clone the repository and create a virtual environment**
 
