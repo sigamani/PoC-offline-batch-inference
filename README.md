@@ -71,7 +71,7 @@ curl -X POST http://localhost:8000/v1/batches \
 curl http://localhost:8000/v1/batches/{batch_id}
 ```
 
-5. **View output files (if jobs SUCCEED)**
+5. **View output files**
 
 The results will be saved in `/tmp/{batch_id}` as separate `input` and `output` json dumps.
 
