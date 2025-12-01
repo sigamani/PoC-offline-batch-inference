@@ -34,6 +34,102 @@ Validated using low-cost GPU nodes on Vast.ai but
 compatible with any NVIDIA-equipped machine.
 
 ---
+
+## DEV Setup
+
+1. **Clone the repository and create a virtual environment**
+
+```bash
+git clone https://github.com/sigamani/PoC-offline-batch-inference.git
+cd PoC-offline-batch-inference
+python3.10 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.dev
+```
+
+2. **Start the API server**
+
+```bash
+python api/main.py
+```
+
+3. **Submit a batch job via CURL**
+
+```bash
+curl -X POST http://localhost:8000/v1/batches \
+-H "Content-Type: application/json" \
+-d '{
+    "model":"Qwen/Qwen2.5-0.5B-Instruct",
+    "input":[{"prompt":"What is 2+2?"},{"prompt":"Hello world"}],
+    "max_tokens":50
+}'
+```
+
+4. **Check job status**
+
+```bash
+curl http://localhost:8000/v1/batches/{batch_id}
+```
+
+5. **View output files (if jobs SUCCEED)**
+
+The results will be available in `/tmp/{batch_id}`, including separate `input` and `output` files.
+
+## STAGE Setup (Ubuntu 22.04 + CUDA)
+
+1 **Option 1: Build locally**
+ 
+```bash
+cd docker
+bash setup.sh
+docker compose -f docker/docker-compose.yaml up --build
+```
+
+1 **Option 2: Use pre-built images (faster)**
+
+```bash
+docker compose -f docker/docker-compose.yaml up
+```
+
+## Getting Started
+
+```bash
+# Clone repository, create a virtual env, install dependencies
+git clone https://github.com/sigamani/PoC-offline-batch-inference.git
+cd PoC-offline-batch-inference
+python3.10 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.dev
+
+# Start the API server
+python api/main.py
+
+# Submit a batch job (example)
+curl -X POST http://localhost:8000/v1/batches -H "Content-Type: application/json" -d '{"model":"Qwen/Qwen2.5-0.5B-Instruct","input":[{"prompt":"What is 2+2?"},{"prompt":"Hello world"}],"max_tokens":50}'
+
+# Check job status
+curl http://localhost:8000/v1/batches/{batch_id}
+
+# Then have a look in /tmp/{batch_id} to see the output of the job 
+# There will be an input and output file.
+
+# For an actual STAGE test of the full pipeline run this:
+
+## Option 1: Build locally
+cd docker
+bash setup.sh
+docker compose -f docker/docker-compose.yaml up --build
+
+## Option 2: Use pre-built images (faster)
+docker compose -f docker/docker-compose.yaml up
+
+Then send a CURL request as described in the DEV setup.
+
+- Swagger docs are available here http://localhost:8000/docs if you prefer debugging with that.
+- If you prefer a notebook, a DEV example can be found [here](https://github.com/sigamani/PoC-offline-batch-inference/blob/main/examples/client_submit.ipynb)
+
+---
+
 <details>
 <summary><strong> 1. Industry Overview </strong></summary>
 
@@ -155,45 +251,6 @@ no support from the wider community that would fall over in production. Since es
 * **Total Tokens Processed:** 4,618 (648 prompt + 3,970 generation)
 * **Cache Hit Rate:** 0.0%
 
-
-## Getting Started
-
-```bash
-# Clone repository, create a virtual env, install dependencies
-git clone https://github.com/sigamani/PoC-offline-batch-inference.git
-cd PoC-offline-batch-inference
-python3.10 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.dev
-
-# Start the API server
-python api/main.py
-
-# Submit a batch job (example)
-curl -X POST http://localhost:8000/v1/batches -H "Content-Type: application/json" -d '{"model":"Qwen/Qwen2.5-0.5B-Instruct","input":[{"prompt":"What is 2+2?"},{"prompt":"Hello world"}],"max_tokens":50}'
-
-# Check job status
-curl http://localhost:8000/v1/batches/{batch_id}
-
-# Then have a look in /tmp/{batch_id} to see the output of the job 
-# There will be an input and output file.
-
-# For an actual STAGE test of the full pipeline run this:
-
-## Option 1: Build locally
-cd docker
-bash setup.sh
-docker compose -f docker/docker-compose.yaml up --build
-
-## Option 2: Use pre-built images (faster)
-docker compose -f docker/docker-compose.yaml up
-
-Then repeat the steps from the CURL request above.
-```
-
-- Also swagger docs are available at http://localhost:8000/docs
-- And a walkthrough notebook [here](https://github.com/sigamani/PoC-offline-batch-inference/blob/main/examples/client_submit.ipynb)
-  
 </details>
 
 ---
