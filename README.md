@@ -79,6 +79,8 @@ The results will be available in `/tmp/{batch_id}`, including separate `input` a
 ## Ubuntu 22.04 + CUDA STAGING 
 <span style="color: #777; font-size: 0.9em;"> GPU = true / vLLM integrated </span>
 
+---
+
 **Option 1:**
 <span style="color: #777; font-size: 0.9em;"> Build image </span>
 
