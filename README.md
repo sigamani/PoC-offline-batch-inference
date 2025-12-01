@@ -79,8 +79,8 @@ The results will be available in `/tmp/{batch_id}`, including separate `input` a
 ## Ubuntu 22.04 + CUDA STAGING 
 <span style="color: #777; font-size: 0.9em;"> GPU = true / vLLM integrated </span>
 
-1 **Option 1:**
- <span style="color: #777; font-size: 0.9em;"> Build image </span>
+**Option 1:**
+<span style="color: #777; font-size: 0.9em;"> Build image </span>
 
 ```bash
 cd docker
@@ -88,8 +88,8 @@ bash setup.sh
 docker compose -f docker/docker-compose.yaml up --build
 ```
 
-1 **Option 2:**
- <span style="color: #777; font-size: 0.9em;"> Use pre-built images (faster) </span>
+**Option 2:**
+<span style="color: #777; font-size: 0.9em;"> Use pre-built images (faster) </span>
 
 ```bash
 docker compose -f docker/docker-compose.yaml up
