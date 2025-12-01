@@ -49,7 +49,7 @@ services:
               capabilities: [gpu]
 
   metrics:
-    image: michaelsigamani/proj-grounded-telescopes:api-0.1.0
+    image: michaelsigamani/proj-grounded-telescopes:api-0.2.0
     build:
       context: ..
       dockerfile: docker/Dockerfile.api
