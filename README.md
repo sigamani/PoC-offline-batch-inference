@@ -97,7 +97,7 @@ docker compose -f docker/docker-compose.yaml up --build
 docker compose -f docker/docker-compose.yaml up
 ```
 
-Then send a CURL request as described in the DEV setup. Swagger docs are available [here](http://localhost:8000/docs). If you prefer a notebook, and example can be found [here](https://github.com/sigamani/PoC-offline-batch-inference/blob/main/examples/client_submit.ipynb)
+Then send the same CURL request as above. Swagger docs are available [here](http://localhost:8000/docs). If you prefer a notebook, and example can be found [here](https://github.com/sigamani/PoC-offline-batch-inference/blob/main/examples/client_submit.ipynb)
 
 ---
 
