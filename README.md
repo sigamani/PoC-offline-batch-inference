@@ -35,8 +35,8 @@ compatible with any NVIDIA-equipped machine.
 
 ---
 
-## Getting Started: Local build  
-<span style="color: #777; font-size: 0.9em;">(no GPU / vLLM mocked)</span>
+## Getting Started: Local DEV build  
+<span style="color: #777; font-size: 0.9em;">no GPU / vLLM mocked</span>
 
 1. **Clone the repository and create a virtual environment**
 
@@ -76,7 +76,8 @@ curl http://localhost:8000/v1/batches/{batch_id}
 
 The results will be available in `/tmp/{batch_id}`, including separate `input` and `output` files.
 
-## Getting Started: Ubuntu 22.04 + CUDA full Build
+## Ubuntu 22.04 + CUDA STAGING 
+<span style="color: #777; font-size: 0.9em;"> GPU = true / vLLM integrated </span>
 
 1 **Option 1: Build image **
  
