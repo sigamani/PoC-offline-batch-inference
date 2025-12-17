@@ -1,4 +1,4 @@
-""" API routes for batch inference service. """
+"""API routes for batch inference service."""
 
 import sys
 import os
@@ -17,7 +17,13 @@ from typing import List, Dict, Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from api.models import BatchRequest, BatchResponse, OpenAIBatchRequest, OpenAIBatchResponse, priorityLevels
+from api.models import (
+    BatchRequest,
+    BatchResponse,
+    OpenAIBatchRequest,
+    OpenAIBatchResponse,
+    priorityLevels,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +35,16 @@ model_config = ModelConfig.default()
 pipeline = RayBatchProcessor(model_config, env_config)
 
 from concurrent.futures import ThreadPoolExecutor
+
 executor = ThreadPoolExecutor(max_workers=4)
 
 from api.job_queue import SimpleQueue
+
 job_queue = SimpleQueue()
 
 
 from api.worker import BatchWorker
+
 try:
     batch_worker = BatchWorker(job_queue)
     batch_worker.start()
@@ -43,49 +52,55 @@ try:
 except Exception as e:
     logger.error(f"Failed to start worker: {e}")
     import traceback
-    traceback.print_exc()
 
+    traceback.print_exc()
 
 
 app = FastAPI(
     title="Ray Data vLLM Batch Inference",
     version="1.0.0",
-    description="Minimal batch inference PoC"
+    description="Minimal batch inference PoC",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"], 
-    allow_headers=["*"],  
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
 batch_config = BatchConfig()
 BATCH_DIR = batch_config.batch_dir
-   
-def calculate_priority(created_at: float, num_prompts: int, deadline_hours: float = 24.0) -> priorityLevels:
+
+
+def calculate_priority(
+    created_at: float, num_prompts: int, deadline_hours: float = 24.0
+) -> priorityLevels:
     """
     Calculate the priority of a task based on its creation time, number of prompts, and deadline.
     A job gets HIGH priority if it's less than 4 hours remaining until deadline, OR IS
     Large job (> 100 prompts) with less than 12 hours remaining
     """
     import time
+
     current_time = time.time()
     deadline_time = created_at + (deadline_hours * 3600)
     time_remaining = deadline_time - current_time
     if time_remaining < 4 * 3600:
-        return priorityLevels.HIGH  
+        return priorityLevels.HIGH
     elif num_prompts > 100 and time_remaining < 12 * 3600:
         return priorityLevels.HIGH
     else:
         return priorityLevels.LOW
-    
+
+
 async def execute_batch_async(prompts: List[str]) -> List[Dict[str, Any]]:
     loop = None
     try:
         import asyncio
+
         loop = asyncio.get_running_loop()
     except RuntimeError:
         pass
@@ -94,31 +109,44 @@ async def execute_batch_async(prompts: List[str]) -> List[Dict[str, Any]]:
         return await loop.run_in_executor(executor, pipeline.process_batch, prompts)
     else:
         return pipeline.process_batch(prompts)
-    
+
 
 @app.get("/debug/worker")
 async def debug_worker():
     """Debug endpoint to check worker status"""
     return {
-        "worker_running": batch_worker.running if 'batch_worker' in globals() else False,
+        "worker_running": (
+            batch_worker.running if "batch_worker" in globals() else False
+        ),
         "queue_depth": job_queue.get_depth(),
-        "worker_thread_alive": batch_worker.worker_thread.is_alive() if 'batch_worker' in globals() and batch_worker.worker_thread else False
+        "worker_thread_alive": (
+            batch_worker.worker_thread.is_alive()
+            if "batch_worker" in globals() and batch_worker.worker_thread
+            else False
+        ),
     }
+
 
 @app.get("/debug/gpu-pools")
 async def debug_gpu_pools():
     """Debug endpoint to check GPU pool status"""
-    if 'batch_worker' in globals():
+    if "batch_worker" in globals():
         return batch_worker.gpu_scheduler.get_pool_status()
     else:
         return {"error": "Worker not initialized"}
+
 
 # ---------------------------
 # Endpoints
 # ---------------------------
 @app.get("/")
 async def root():
-    return {"status": "healthy", "service": "ray-data-vllm-batch-inference", "version": "1.0.0"}
+    return {
+        "status": "healthy",
+        "service": "ray-data-vllm-batch-inference",
+        "version": "1.0.0",
+    }
+
 
 @app.post("/generate_batch", response_model=BatchResponse)
 async def generate_batch(request: BatchRequest):
@@ -134,51 +162,56 @@ async def generate_batch(request: BatchRequest):
         results=results,
         total_time=total_time,
         total_prompts=len(request.prompts),
-        throughput=len(request.prompts)/total_time if total_time > 0 else 0
+        throughput=len(request.prompts) / total_time if total_time > 0 else 0,
     )
+
 
 @app.get("/queue/stats")
 async def get_queue_stats():
     """Get current queue statistics"""
-    return {
-        "depth": job_queue.get_depth(),
-        "max_depth": job_queue.max_depth
-    }
+    return {"depth": job_queue.get_depth(), "max_depth": job_queue.max_depth}
+
 
 @app.get("/v1/batches")
 async def list_batches():
     try:
         batches = []
         batch_files = []
-        
+
         if os.path.exists(BATCH_DIR):
-            batch_files = [f for f in os.listdir(BATCH_DIR) if f.startswith("job_") and f.endswith(".json")]
-        
+            batch_files = [
+                f
+                for f in os.listdir(BATCH_DIR)
+                if f.startswith("job_") and f.endswith(".json")
+            ]
+
         for batch_file in batch_files:
             job_path = os.path.join(BATCH_DIR, batch_file)
             try:
                 with open(job_path, "r") as f:
                     job = json.load(f)
-                    batches.append({
-                        "id": job.get("id", "unknown"),
-                        "object": "batch",
-                        "created_at": job.get("created_at", 0),
-                        "completed_at": job.get("completed_at", 0),
-                        "status": job.get("status", "unknown"),
-                        "total_prompts": job.get("num_prompts", 0),
-                        "model": job.get("model", "unknown")
-                    })
+                    batches.append(
+                        {
+                            "id": job.get("id", "unknown"),
+                            "object": "batch",
+                            "created_at": job.get("created_at", 0),
+                            "completed_at": job.get("completed_at", 0),
+                            "status": job.get("status", "unknown"),
+                            "total_prompts": job.get("num_prompts", 0),
+                            "model": job.get("model", "unknown"),
+                        }
+                    )
             except Exception as e:
                 logger.error(f"Failed to read batch file {batch_file}: {e}")
                 continue
-        
+
         return {"object": "list", "data": batches}
-        
+
     except Exception as e:
         logger.error(f"Failed to list batches: {e}")
         raise HTTPException(status_code=500, detail="Failed to list batches")
-    
-        
+
+
 @app.post("/v1/batches", response_model=OpenAIBatchResponse)
 async def create_openai_batch(request: OpenAIBatchRequest):
     try:
@@ -186,10 +219,10 @@ async def create_openai_batch(request: OpenAIBatchRequest):
             prompts = [item.get("prompt", "") for item in request.input]
         else:
             raise HTTPException(status_code=400, detail="No input prompts provided")
-        
+
         created_at = float(time.time())
-        batch_id = str(uuid.uuid4())[:12]  
-        
+        batch_id = str(uuid.uuid4())[:12]
+
         job_data = {
             "id": batch_id,
             "model": request.model,
@@ -198,22 +231,24 @@ async def create_openai_batch(request: OpenAIBatchRequest):
             "num_prompts": len(prompts),
             "input_file": f"{batch_id}_input.jsonl",
             "output_file": f"{batch_id}_output.jsonl",
-            "error_file": f"{batch_id}_errors.jsonl"
+            "error_file": f"{batch_id}_errors.jsonl",
         }
-        
+
         job_path = os.path.join(BATCH_DIR, f"job_{batch_id}.json")
         with open(job_path, "w") as f:
             json.dump(job_data, f, indent=2)
-        
+
         input_path = os.path.join(BATCH_DIR, f"{batch_id}_input.jsonl")
         with open(input_path, "w") as f:
             for prompt in prompts:
                 json.dump({"prompt": prompt}, f)
                 f.write("\n")
-        
+
         priority = calculate_priority(created_at, len(prompts))
-        logger.info(f"Enqueuing batch {batch_id} with priority {priority} and {len(prompts)} prompts")
-        
+        logger.info(
+            f"Enqueuing batch {batch_id} with priority {priority} and {len(prompts)} prompts"
+        )
+
         job_payload = {
             "job_id": batch_id,
             "input_file": input_path,
@@ -221,35 +256,44 @@ async def create_openai_batch(request: OpenAIBatchRequest):
             "model": request.model,
             "max_tokens": request.max_tokens,
             "temperature": request.temperature,
-            "error_file": os.path.join(BATCH_DIR, f"{batch_id}_errors.jsonl")
+            "error_file": os.path.join(BATCH_DIR, f"{batch_id}_errors.jsonl"),
         }
-        
+
         # Actually enqueue the job!
         try:
             message_id = job_queue.enqueue(job_payload, priority)
             if message_id:
-                logger.info(f"Successfully enqueued batch {batch_id} with message_id {message_id}, queue depth: {job_queue.get_depth()}")
+                logger.info(
+                    f"Successfully enqueued batch {batch_id} with message_id {message_id}, queue depth: {job_queue.get_depth()}"
+                )
             else:
-                logger.error(f"Failed to enqueue batch {batch_id} - queue returned None")
-                raise HTTPException(status_code=503, detail="Queue full - unable to enqueue batch")
+                logger.error(
+                    f"Failed to enqueue batch {batch_id} - queue returned None"
+                )
+                raise HTTPException(
+                    status_code=503, detail="Queue full - unable to enqueue batch"
+                )
         except Exception as e:
             logger.error(f"Error enqueuing batch {batch_id}: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to enqueue batch: {str(e)}")
-                
+            raise HTTPException(
+                status_code=500, detail=f"Failed to enqueue batch: {str(e)}"
+            )
+
         return OpenAIBatchResponse(
             id=batch_id,
             object="batch",
             created_at=int(created_at),
             status="queued",
             total_prompts=len(prompts),
-            model=request.model
+            model=request.model,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to create batch: {e}")
         raise HTTPException(status_code=500, detail="Failed to create batch")
+
 
 @app.get("/v1/batches/{batch_id}")
 async def get_openai_batch(batch_id: str):
@@ -263,7 +307,7 @@ async def get_openai_batch(batch_id: str):
             "created_at": job.get("created_at", 0),
             "completed_at": job.get("completed_at", 0),
             "status": job.get("status", "unknown"),
-            "total_prompts": job.get("num_prompts", 0)
+            "total_prompts": job.get("num_prompts", 0),
         }
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Batch not found")
@@ -273,20 +317,24 @@ async def get_openai_batch(batch_id: str):
 async def get_openai_batch_results(batch_id: str):
     try:
         output_file = os.path.join(BATCH_DIR, f"{batch_id}_output.jsonl")
-        
+
         if not os.path.exists(output_file):
             raise HTTPException(status_code=404, detail="Batch results not found")
-        
+
         results = []
-        with open(output_file, 'r') as f:
+        with open(output_file, "r") as f:
             for line in f:
                 if line.strip():
                     results.append(json.loads(line))
-        
+
         return {"object": "list", "data": results}
     except HTTPException:
         raise
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=500, detail=f"Invalid JSON in batch results: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Invalid JSON in batch results: {str(e)}"
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load batch results: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to load batch results: {str(e)}"
+        )

@@ -1,18 +1,21 @@
-""" Inference utilities to work with Ray batch processing pipeline. """
+"""Inference utilities to work with Ray batch processing pipeline."""
 
 import sys
 import os
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
 from pipeline.models import InferenceResult
 import logging
+
 logger = logging.getLogger(__name__)
 
 import ray
 import pandas as pd
 from typing import List
+
 
 def create_dataset(prompts: List[str]):
     try:
@@ -24,6 +27,7 @@ def create_dataset(prompts: List[str]):
     except Exception as e:
         logger.error(f"Failed to create dataset: {e}")
         return prompts
+
 
 def generate_mock_response(prompt: str, is_dev: bool) -> str:
     if is_dev:
@@ -48,5 +52,5 @@ def create_mock_result(prompt: str, is_dev: bool) -> InferenceResult:
         prompt=prompt,
         response=response,
         tokens=len(response.split()),
-        processing_time=0.001
+        processing_time=0.001,
     )

@@ -11,9 +11,17 @@ project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 from api.routes import app
 import logging
+import typer
+
+app = typer.Typer()
 
 logger = logging.getLogger(__name__)
 
-if __name__ == "__main__":
+
+def main() -> None:
     logger.info("Starting Uvicorn server with FastAPI app on 0.0.0.0:8000")
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+if __name__ == "__main__":
+    typer.run(main)
