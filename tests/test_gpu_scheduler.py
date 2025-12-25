@@ -12,7 +12,6 @@ from api.models import priorityLevels
 
 
 class TestMockGPUScheduler:
-
     def setup_method(self):
         self.scheduler = MockGPUScheduler(spot_capacity=2, dedicated_capacity=1)
 
@@ -49,7 +48,7 @@ class TestMockGPUScheduler:
         ]
 
         for i, result in enumerate(results):
-            assert result.allocated == True, f"Job {i+1} should be allocated"
+            assert result.allocated == True, f"Job {i + 1} should be allocated"
 
         result = self.scheduler.allocate_gpu("job4", priority_level=priorityLevels.LOW)
         assert result.allocated == False

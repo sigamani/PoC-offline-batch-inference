@@ -98,9 +98,9 @@ def test_batch_creation(server_url):
     queue_response = requests.get(f"{server_url}/queue/stats")
     if queue_response.status_code == 200:
         final_depth = queue_response.json().get("depth", 0)
-        assert (
-            final_depth == initial_depth + 1
-        ), f"Queue depth should increase by 1, was {initial_depth}, now {final_depth}"
+        assert final_depth == initial_depth + 1, (
+            f"Queue depth should increase by 1, was {initial_depth}, now {final_depth}"
+        )
 
 
 def test_batch_list(server_url):

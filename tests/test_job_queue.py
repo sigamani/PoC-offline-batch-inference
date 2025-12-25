@@ -13,7 +13,6 @@ from api.models import priorityLevels
 
 
 class TestSimpleQueue:
-
     @pytest.fixture
     def queue(self):
         return SimpleQueue()
@@ -117,7 +116,7 @@ class TestSimpleQueue:
 
         for i in range(2, 5):
             assert messages[i].priority == priorityLevels.LOW
-            assert messages[i].payload["job_id"] == f"low_job_{i-2}"
+            assert messages[i].payload["job_id"] == f"low_job_{i - 2}"
 
     def test_priority_mixed_ordering(self, queue, sample_payload):
         order = []

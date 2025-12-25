@@ -17,7 +17,6 @@ from api.models import priorityLevels
 
 
 class TestGPUIntegration:
-
     @pytest.fixture
     def scheduler(self):
         return MockGPUScheduler(spot_capacity=2, dedicated_capacity=1)
@@ -60,12 +59,12 @@ class TestGPUIntegration:
         print(f"DEBUG: Pool status: {scheduler.get_pool_status()}")
 
         allocation = scheduler.get_job_allocation("gpu_test_job")
-        assert (
-            allocation is not None
-        ), f"GPU should be allocated while job is processing. Got: {allocation}"
-        assert (
-            allocation == PoolType.DEDICATED
-        ), "High priority job should get dedicated GPU"
+        assert allocation is not None, (
+            f"GPU should be allocated while job is processing. Got: {allocation}"
+        )
+        assert allocation == PoolType.DEDICATED, (
+            "High priority job should get dedicated GPU"
+        )
 
         time.sleep(2.0)
 
@@ -75,13 +74,13 @@ class TestGPUIntegration:
         with open(job_file, "r") as f:
             job_data = json.load(f)
 
-        assert (
-            job_data["status"] == "completed"
-        ), f"Job should be completed, got status: {job_data['status']}"
+        assert job_data["status"] == "completed", (
+            f"Job should be completed, got status: {job_data['status']}"
+        )
 
-        assert os.path.exists(
-            f"{worker.batch_dir}/gpu_output.jsonl"
-        ), "Output file should exist"
+        assert os.path.exists(f"{worker.batch_dir}/gpu_output.jsonl"), (
+            "Output file should exist"
+        )
 
     def test_gpu_exhaustion_handling(self, worker, queue, scheduler):
         for i in range(3):
@@ -116,18 +115,18 @@ class TestGPUIntegration:
         spot_allocated = sum(
             1 for pool in allocations.values() if pool == PoolType.SPOT
         )
-        assert (
-            spot_allocated == 1
-        ), f"Expected 1 spot GPU allocated, got {spot_allocated}"
+        assert spot_allocated == 1, (
+            f"Expected 1 spot GPU allocated, got {spot_allocated}"
+        )
 
         time.sleep(8.0)
 
         output_files = [
             f for f in os.listdir(worker.batch_dir) if f.endswith("_output.jsonl")
         ]
-        assert (
-            len(output_files) > 0
-        ), "At least some jobs should have completed and created output files"
+        assert len(output_files) > 0, (
+            "At least some jobs should have completed and created output files"
+        )
 
         worker.stop()
 
@@ -161,9 +160,9 @@ class TestGPUIntegration:
         time.sleep(0.3)
 
         allocation = scheduler.get_job_allocation("priority_job")
-        assert (
-            allocation == PoolType.DEDICATED
-        ), "High priority job should get dedicated GPU"
+        assert allocation == PoolType.DEDICATED, (
+            "High priority job should get dedicated GPU"
+        )
 
         worker.stop()
 
@@ -182,6 +181,6 @@ class TestGPUIntegration:
 
         pool_status = metrics["pool_status"]
         assert pool_status["spot"]["utilized"] == 2, "Spot pool should have 2 utilized"
-        assert (
-            pool_status["dedicated"]["utilized"] == 1
-        ), "Dedicated pool should have 1 utilized"
+        assert pool_status["dedicated"]["utilized"] == 1, (
+            "Dedicated pool should have 1 utilized"
+        )

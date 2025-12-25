@@ -20,7 +20,6 @@ from api.models import priorityLevels
 
 
 class TestThreadSafety:
-
     @pytest.fixture
     def scheduler(self):
         return MockGPUScheduler(spot_capacity=2, dedicated_capacity=1)
@@ -60,9 +59,9 @@ class TestThreadSafety:
         assert len(errors) == 0, f"Errors occurred: {errors}"
         assert len(results) == 10, f"Expected 10 results, got {len(results)}"
         assert len(set(results)) == 10, "All message IDs should be unique"
-        assert (
-            queue.get_depth() == 10
-        ), f"Queue depth should be 10, got {queue.get_depth()}"
+        assert queue.get_depth() == 10, (
+            f"Queue depth should be 10, got {queue.get_depth()}"
+        )
 
     @pytest.fixture
     def queue(self):
@@ -163,16 +162,16 @@ class TestThreadSafety:
                 future.result()
 
         assert len(errors) == 0, f"Allocation errors: {errors}"
-        assert (
-            len(allocation_results) == 6
-        ), f"Expected 6 allocation attempts, got {len(allocation_results)}"
+        assert len(allocation_results) == 6, (
+            f"Expected 6 allocation attempts, got {len(allocation_results)}"
+        )
 
         successful_allocations = sum(
             1 for _, result in allocation_results if result.allocated
         )
-        assert (
-            successful_allocations <= 3
-        ), f"Expected <=3 successful allocations, got {successful_allocations}"
+        assert successful_allocations <= 3, (
+            f"Expected <=3 successful allocations, got {successful_allocations}"
+        )
 
         final_status = scheduler.get_pool_status()
         total_available = (
@@ -258,9 +257,9 @@ class TestThreadSafety:
                 responses = [future.result() for future in as_completed(futures)]
 
             success_count = sum(1 for r in responses if r.status_code == 200)
-            assert (
-                success_count == 5
-            ), f"Expected 5 successful requests, got {success_count}"
+            assert success_count == 5, (
+                f"Expected 5 successful requests, got {success_count}"
+            )
 
             batch_ids = [r.json().get("id") for r in responses if r.status_code == 200]
             assert len(set(batch_ids)) == 5, "All batch IDs should be unique"
@@ -292,6 +291,6 @@ class TestRaceConditions:
             thread.join(timeout=2)
 
         unique_depths = set(depth_results)
-        assert (
-            len(unique_depths) <= 2
-        ), f"Depth readings too inconsistent: {unique_depths}"
+        assert len(unique_depths) <= 2, (
+            f"Depth readings too inconsistent: {unique_depths}"
+        )
