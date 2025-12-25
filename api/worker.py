@@ -10,7 +10,6 @@ sys.path.insert(0, project_root)
 from config import BatchConfig, EnvironmentConfig, ModelConfig
 
 from api.job_queue import SimpleQueue
-from config import ModelConfig, EnvironmentConfig
 from pipeline.ray_batch import RayBatchProcessor
 from api.gpu_scheduler import MockGPUScheduler
 from api.models import priorityLevels

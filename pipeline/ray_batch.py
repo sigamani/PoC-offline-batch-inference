@@ -13,7 +13,6 @@ from config import EnvironmentConfig, ModelConfig
 
 logger = logging.getLogger(__name__)
 
-from config import EnvironmentConfig, ModelConfig
 from pipeline.inference import create_mock_result
 
 

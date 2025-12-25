@@ -27,7 +27,6 @@ from api.models import (
 
 logger = logging.getLogger(__name__)
 
-from config import EnvironmentConfig, ModelConfig
 from pipeline.ray_batch import RayBatchProcessor
 
 env_config = EnvironmentConfig.from_env()
