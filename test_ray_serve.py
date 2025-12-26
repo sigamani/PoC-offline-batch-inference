@@ -140,8 +140,7 @@ def calculate_avg_latency(
 
 
 def log_summary(
-    results: List[Tuple[Optional[GenerationResult], float]], total_time: float
-):
+    results: List[Tuple[Optional[GenerationResult], float]], total_time: float):
     valid_results = [r for r in results if r[0] is not None]
     logger.info(f"Completed {len(valid_results)} requests in {total_time:.2f}s")
     if valid_results:
@@ -155,3 +154,4 @@ def run_test_requests(prompts: List[str]):
     start_total = time.time()
     results = run_requests_concurrently(prompts)
     log_summary(results, time.time() - start_total)
+
