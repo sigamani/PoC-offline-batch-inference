@@ -13,11 +13,10 @@ from api.models import priorityLevels
 
 
 class TestSimpleQueue:
-    
     @pytest.fixture
     def queue(self):
         return SimpleQueue()
-    
+
     @pytest.fixture
     def sample_payload(self):
         return {
@@ -25,20 +24,20 @@ class TestSimpleQueue:
             "input_file": "/tmp/test_input.jsonl",
             "output_file": "/tmp/test_output.jsonl",
             "model": "Qwen/Qwen2.5-0.5B-Instruct",
-            "max_tokens": 256
+            "max_tokens": 256,
         }
-    
+
     def test_enqueue_single_message(self, queue, sample_payload):
         msg_id = queue.enqueue(sample_payload, priorityLevels.LOW)
-        
+
         assert isinstance(msg_id, str)
-        assert len(msg_id) == 8  
-        
+        assert len(msg_id) == 8
+
         assert queue.get_depth() == 1
-        
+
         messages = queue.dequeue(count=1)
         assert len(messages) == 1
-        
+
         msg = messages[0]
         assert isinstance(msg, QueueMessage)
         assert msg.message_id == msg_id
@@ -49,19 +48,19 @@ class TestSimpleQueue:
 
     def test_enqueue_multiple_messages(self, queue, sample_payload):
         msg_ids = []
-        
+
         for i in range(5):
             payload = {**sample_payload, "job_id": f"test_job_{i}"}
             msg_id = queue.enqueue(payload, priorityLevels.LOW)
             msg_ids.append(msg_id)
-        
+
         assert len(set(msg_ids)) == 5
-        
+
         assert queue.get_depth() == 5
-        
+
         messages = queue.dequeue(count=5)
         assert len(messages) == 5
-        
+
         for i, msg in enumerate(messages):
             assert msg.message_id == msg_ids[i]
             assert msg.payload["job_id"] == f"test_job_{i}"
@@ -75,11 +74,11 @@ class TestSimpleQueue:
         for i in range(3):
             payload = {**sample_payload, "job_id": f"test_job_{i}"}
             queue.enqueue(payload, priorityLevels.LOW)
-        
+
         messages = queue.dequeue(count=2)
         assert len(messages) == 2
-        assert queue.get_depth() == 1  
-        
+        assert queue.get_depth() == 1
+
         remaining = queue.dequeue(count=1)
         assert len(remaining) == 1
         assert queue.get_depth() == 0
@@ -88,81 +87,91 @@ class TestSimpleQueue:
         for i in range(2):
             payload = {**sample_payload, "job_id": f"test_job_{i}"}
             queue.enqueue(payload, priorityLevels.LOW)
-        
+
         messages = queue.dequeue(count=5)
-        assert len(messages) == 2  
+        assert len(messages) == 2
         assert queue.get_depth() == 0
 
     def test_priority_high_first(self, queue, sample_payload):
         msg_ids = []
-        
+
         for i in range(3):
             payload = {**sample_payload, "job_id": f"low_job_{i}"}
             msg_id = queue.enqueue(payload, priorityLevels.LOW)
             msg_ids.append(("low", msg_id))
-        
+
         for i in range(2):
             payload = {**sample_payload, "job_id": f"high_job_{i}"}
             msg_id = queue.enqueue(payload, priorityLevels.HIGH)
             msg_ids.append(("high", msg_id))
-        
+
         assert queue.get_depth() == 5
-        
+
         messages = queue.dequeue(count=5)
         assert len(messages) == 5
-        
+
         for i in range(2):
             assert messages[i].priority == priorityLevels.HIGH
             assert messages[i].payload["job_id"] == f"high_job_{i}"
-        
+
         for i in range(2, 5):
             assert messages[i].priority == priorityLevels.LOW
-            assert messages[i].payload["job_id"] == f"low_job_{i-2}"
+            assert messages[i].payload["job_id"] == f"low_job_{i - 2}"
 
     def test_priority_mixed_ordering(self, queue, sample_payload):
         order = []
-        
-        msg_id1 = queue.enqueue({**sample_payload, "job_id": "job_1"}, priorityLevels.LOW)
+
+        msg_id1 = queue.enqueue(
+            {**sample_payload, "job_id": "job_1"}, priorityLevels.LOW
+        )
         order.append(("low", msg_id1))
-        
-        msg_id2 = queue.enqueue({**sample_payload, "job_id": "job_2"}, priorityLevels.HIGH)
+
+        msg_id2 = queue.enqueue(
+            {**sample_payload, "job_id": "job_2"}, priorityLevels.HIGH
+        )
         order.append(("high", msg_id2))
-        
-        msg_id3 = queue.enqueue({**sample_payload, "job_id": "job_3"}, priorityLevels.LOW)
+
+        msg_id3 = queue.enqueue(
+            {**sample_payload, "job_id": "job_3"}, priorityLevels.LOW
+        )
         order.append(("low", msg_id3))
-        
-        msg_id4 = queue.enqueue({**sample_payload, "job_id": "job_4"}, priorityLevels.HIGH)
+
+        msg_id4 = queue.enqueue(
+            {**sample_payload, "job_id": "job_4"}, priorityLevels.HIGH
+        )
         order.append(("high", msg_id4))
-        
-        msg_id5 = queue.enqueue({**sample_payload, "job_id": "job_5"}, priorityLevels.LOW)
+
+        msg_id5 = queue.enqueue(
+            {**sample_payload, "job_id": "job_5"}, priorityLevels.LOW
+        )
         order.append(("low", msg_id5))
-        
+
         messages = queue.dequeue(count=5)
-        
+
         expected_order = ["job_2", "job_4", "job_1", "job_3", "job_5"]
         actual_order = [msg.payload["job_id"] for msg in messages]
-        
+
         assert actual_order == expected_order
 
     def test_priority_fifo_within_same_priority(self, queue, sample_payload):
         high_msg_ids = []
         low_msg_ids = []
-        
+
         for i in range(3):
             payload = {**sample_payload, "job_id": f"high_job_{i}"}
             msg_id = queue.enqueue(payload, priorityLevels.HIGH)
             high_msg_ids.append(msg_id)
-        
+
         for i in range(3):
             payload = {**sample_payload, "job_id": f"low_job_{i}"}
             msg_id = queue.enqueue(payload, priorityLevels.LOW)
             low_msg_ids.append(msg_id)
-        
+
         messages = queue.dequeue(count=3)
         for i, msg in enumerate(messages):
             assert msg.priority == priorityLevels.HIGH
             assert msg.message_id == high_msg_ids[i]
-        
+
         messages = queue.dequeue(count=3)
         for i, msg in enumerate(messages):
             assert msg.priority == priorityLevels.LOW
@@ -171,95 +180,107 @@ class TestSimpleQueue:
     def test_partial_dequeue_with_priority(self, queue, sample_payload):
         low_ids = []
         high_ids = []
-        
+
         for i in range(2):
-            low_ids.append(queue.enqueue({**sample_payload, "job_id": f"low_{i}"}, priorityLevels.LOW))
-        
+            low_ids.append(
+                queue.enqueue(
+                    {**sample_payload, "job_id": f"low_{i}"}, priorityLevels.LOW
+                )
+            )
+
         for i in range(2):
-            high_ids.append(queue.enqueue({**sample_payload, "job_id": f"high_{i}"}, priorityLevels.HIGH))
-        
+            high_ids.append(
+                queue.enqueue(
+                    {**sample_payload, "job_id": f"high_{i}"}, priorityLevels.HIGH
+                )
+            )
+
         for i in range(2, 4):
-            low_ids.append(queue.enqueue({**sample_payload, "job_id": f"low_{i}"}, priorityLevels.LOW))
-        
+            low_ids.append(
+                queue.enqueue(
+                    {**sample_payload, "job_id": f"low_{i}"}, priorityLevels.LOW
+                )
+            )
+
         messages = queue.dequeue(count=3)
         assert len(messages) == 3
-        
+
         assert messages[0].priority == priorityLevels.HIGH
         assert messages[1].priority == priorityLevels.HIGH
-        
+
         assert messages[2].priority == priorityLevels.LOW
-        
+
         assert queue.get_depth() == 3
 
     def test_queue_depth_tracking(self, queue, sample_payload):
         assert queue.get_depth() == 0
-        
+
         for i in range(5):
             queue.enqueue({**sample_payload, "job_id": f"job_{i}"}, priorityLevels.LOW)
             assert queue.get_depth() == i + 1
-        
+
         for i in range(5):
             queue.dequeue(count=1)
             assert queue.get_depth() == 4 - i
 
     def test_max_depth_limit_enforced(self, queue, sample_payload):
-        for i in range(queue.max_depth): 
+        for i in range(queue.max_depth):
             payload = {**sample_payload, "job_id": f"job_{i}"}
             msg_id = queue.enqueue(payload, priorityLevels.LOW)
-            assert msg_id is not None  
-        
+            assert msg_id is not None
+
         assert queue.get_depth() == queue.max_depth
-        
+
         payload = {**sample_payload, "job_id": "job_too_many"}
         msg_id = queue.enqueue(payload, priorityLevels.LOW)
-        assert msg_id is None  
-        
+        assert msg_id is None
+
         assert queue.get_depth() == queue.max_depth
 
     def test_queue_message_timestamps(self, queue, sample_payload):
         start_time = time.time()
-        
+
         msg_id = queue.enqueue(sample_payload, priorityLevels.LOW)
         assert msg_id is not None
-                
+
         messages = queue.dequeue(count=1)
         assert len(messages) == 1
         msg = messages[0]
-        
+
         assert msg.timestamp >= start_time
         assert msg.timestamp <= time.time()
         assert isinstance(msg.timestamp, float)
 
     def test_queue_message_id_uniqueness(self, queue, sample_payload):
         msg_ids = set()
-        
+
         for i in range(100):
             payload = {**sample_payload, "job_id": f"job_{i}"}
             msg_id = queue.enqueue(payload, priorityLevels.LOW)
-            
+
             assert isinstance(msg_id, str)
             assert len(msg_id) == 8
             assert msg_id not in msg_ids
             msg_ids.add(msg_id)
-        
+
         assert len(msg_ids) == 100
 
     def test_large_batch_operations(self, queue, sample_payload):
         batch_size = 1000
-        
+
         msg_ids = []
         for i in range(batch_size):
             payload = {**sample_payload, "job_id": f"job_{i}"}
             msg_id = queue.enqueue(payload, priorityLevels.LOW)
             msg_ids.append(msg_id)
-        
+
         assert queue.get_depth() == batch_size
-        assert len(set(msg_ids)) == batch_size  
-        
+        assert len(set(msg_ids)) == batch_size
+
         messages = queue.dequeue(count=batch_size)
         assert len(messages) == batch_size
         assert queue.get_depth() == 0
-        
+
         for i, msg in enumerate(messages):
             assert msg.message_id == msg_ids[i]
             assert msg.payload["job_id"] == f"job_{i}"
@@ -267,47 +288,55 @@ class TestSimpleQueue:
     def test_mixed_priority_large_batch(self, queue, sample_payload):
         high_count = 300
         low_count = 700
-        
+
         high_ids = []
         low_ids = []
-        
+
         for i in range(max(high_count, low_count)):
             if i < low_count:
-                low_id = queue.enqueue({**sample_payload, "job_id": f"low_{i}"}, priorityLevels.LOW)
+                low_id = queue.enqueue(
+                    {**sample_payload, "job_id": f"low_{i}"}, priorityLevels.LOW
+                )
                 low_ids.append(low_id)
-            
+
             if i < high_count:
-                high_id = queue.enqueue({**sample_payload, "job_id": f"high_{i}"}, priorityLevels.HIGH)
+                high_id = queue.enqueue(
+                    {**sample_payload, "job_id": f"high_{i}"}, priorityLevels.HIGH
+                )
                 high_ids.append(high_id)
-        
+
         assert queue.get_depth() == high_count + low_count
-        
+
         messages = queue.dequeue(count=high_count + low_count)
         assert len(messages) == high_count + low_count
-        
+
         for i in range(high_count):
             assert messages[i].priority == priorityLevels.HIGH
             assert messages[i].payload["job_id"] == f"high_{i}"
-        
+
         for i in range(high_count, high_count + low_count):
             assert messages[i].priority == priorityLevels.LOW
             assert messages[i].payload["job_id"].startswith("low_")
 
     def test_queue_state_isolation(self, queue, sample_payload):
         queue2 = SimpleQueue()
-        
-        msg_id1 = queue.enqueue({**sample_payload, "job_id": "queue1_job"}, priorityLevels.LOW)
-        msg_id2 = queue2.enqueue({**sample_payload, "job_id": "queue2_job"}, priorityLevels.HIGH)
-        
+
+        msg_id1 = queue.enqueue(
+            {**sample_payload, "job_id": "queue1_job"}, priorityLevels.LOW
+        )
+        msg_id2 = queue2.enqueue(
+            {**sample_payload, "job_id": "queue2_job"}, priorityLevels.HIGH
+        )
+
         assert queue.get_depth() == 1
         assert queue2.get_depth() == 1
-        
+
         messages1 = queue.dequeue(count=1)
         assert len(messages1) == 1
         assert messages1[0].message_id == msg_id1
         assert queue.get_depth() == 0
-        assert queue2.get_depth() == 1  
-        
+        assert queue2.get_depth() == 1
+
         messages2 = queue2.dequeue(count=1)
         assert len(messages2) == 1
         assert messages2[0].message_id == msg_id2

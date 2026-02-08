@@ -1,4 +1,4 @@
-""" Data models for batch processing API. """
+"""Data models for batch processing API."""
 
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -7,14 +7,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class priorityLevels(Enum):
     LOW = 1
     HIGH = 10
+
 
 class BatchRequest(BaseModel):
     prompts: List[str]
     max_tokens: int = 256
     temperature: float = 0.7
+
 
 class BatchResponse(BaseModel):
     results: List[Dict[str, Any]]
@@ -22,12 +25,14 @@ class BatchResponse(BaseModel):
     total_prompts: int
     throughput: float
 
+
 class OpenAIBatchRequest(BaseModel):
     model: str = "Qwen/Qwen2.5-0.5B-Instruct"
-    input: Optional[List[Dict[str, str]]] = None  
+    input: Optional[List[Dict[str, str]]] = None
     input_file_id: Optional[str] = None
     max_tokens: int = 256
     temperature: float = 0.7
+
 
 class OpenAIBatchResponse(BaseModel):
     id: str

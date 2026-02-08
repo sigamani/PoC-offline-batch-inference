@@ -1,72 +1,174 @@
-# Docker Compose configuration for the API and vLLM services. This file defines and runs a
-# multi-container setup intended for a staging environment. The goal is to simulate the
-# production architecture as closely as possible. In practice, this setup is designed to run
-# against spot and dedicated GPU instances rented from faster, lower-cost providers such as
-# Vast.ai or Lambda Labs before deploying to AWS, GCP, or Azure.
+version: '3.8'
 
 services:
-  api:
-    image: michaelsigamani/proj-grounded-telescopes:api-0.2.0
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.api
-    environment:
-      - RAY_BACKEND=log
-      - ENVIRONMENT=STAGE
-      - GPU_AVAILABLE=true
-    working_dir: /app
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.dashboard.address=:8080"
+      - "--entrypoints.prometheus.address=:9090"
     ports:
+      - "80:80"
+      - "8080:8080"
+      - "9090:9090"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - ray-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`localhost`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  ray-head:
+    build:
+      context: .
+      dockerfile: michaelsigamani/proj-grounded-telescopes:0.3.1 
+    container_name: ray-head
+    ports:
+      - "6379:6379"
+      - "8265:8265"
       - "8000:8000"
-    volumes:
-        - ../api:/app/api
-        - ../pipeline:/app/pipeline
-        - batch_storage:/tmp
-  vllm:
-    image: michaelsigamani/proj-grounded-telescopes:vllm-0.2.0
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.vllm
     environment:
-      - RAY_BACKEND=log
-      - ENVIRONMENT=STAGE
-      - GPU_AVAILABLE=true 
-    working_dir: /app
-    
-    ports:
-      - "8001:8001"
-      - "8002:8002"
+      - ENVIRONMENT=PRODUCTION
+      - GPU_AVAILABLE=true
+      - RAY_DASHBOARD_HOST=0.0.0.0
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=qwen2.5-32b-custom:latest
+      - BATCH_DIR=/tmp/batch_output
+      - MAX_QUEUE_DEPTH=10000
+      - WORKER_POLL_INTERVAL=0.1
     volumes:
-        - ../api:/app/api
-        - ../pipeline:/app/pipeline
-        - batch_storage:/tmp
+      - batch_output:/tmp/batch_output
+      - ./api:/app/api
+      - ./pipeline:/app/pipeline
+      - ./config.py:/app/config.py
+    networks:
+      - ray-network
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: all
+              count: 1
               capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ray-dashboard.rule=Host(`localhost`)"
+      - "traefik.http.services.ray-dashboard.loadbalancer.server.port=8265"
+      - "traefik.http.routers.api.rule=Host(`localhost`)"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
 
-  metrics:
-    image: michaelsigamani/proj-grounded-telescopes:api-0.2.0
+  ray-gpu-worker:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.api
+      context: .
+      dockerfile: michaelsigamani/proj-grounded-telescopes:0.3.1
+    command: >
+      bash -c "
+        source /opt/ray-env/bin/activate &&
+        ray start --address=ray-head:6379 --num-cpus=4 --num-gpus=1 --block &&
+        tail -f /dev/null
+      "
     environment:
-      - RAY_BACKEND=log
-      - ENVIRONMENT=STAGE
+      - ENVIRONMENT=PRODUCTION
       - GPU_AVAILABLE=true
-    working_dir: /app
-    command: uvicorn api.metrics_collector:app --host 0.0.0.0 --port 8003
-    ports:
-      - "8003:8003"
+      - RAY_ADDRESS=ray-head:6379
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
     volumes:
-        - ../api:/app/api
-        - ../pipeline:/app/pipeline
-        - batch_storage:/tmp
+      - batch_output:/tmp/batch_output
+    networks:
+      - ray-network
     depends_on:
-      - vllm
+      ray-head:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    scale: 2
+
+  ray-cpu-worker:
+    build:
+      context: .
+      dockerfile: michaelsigamani/proj-grounded-telescopes:0.3.1
+    command: >
+      bash -c "
+        source /opt/ray-env/bin/activate &&
+        ray start --address=ray-head:6379 --num-cpus=2 --block &&
+        tail -f /dev/null
+      "
+    environment:
+      - ENVIRONMENT=PRODUCTION
+      - GPU_AVAILABLE=false
+      - RAY_ADDRESS=ray-head:6379
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    volumes:
+      - batch_output:/tmp/batch_output
+    networks:
+      - ray-network
+    depends_on:
+      ray-head:
+        condition: service_healthy
+    scale: 1
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus-config.yaml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - ray-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`localhost`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana-dashboard.yaml:/etc/grafana/provisioning/dashboards/dashboard.yml
+    networks:
+      - ray-network
+    depends_on:
+      - prometheus
+
+networks:
+  ray-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
 volumes:
-  batch_storage:
-    driver: local
+  batch_output:
+  prometheus_data:
+  grafana_data:
